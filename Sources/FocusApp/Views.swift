@@ -26,6 +26,7 @@ struct MainView: View {
                 HStack(spacing: 9) { Image(systemName: "circle.lefthalf.filled").font(.system(size: 23)); Text("先做一刻").font(.system(size: 19, weight: .semibold)) }.padding(.bottom, 6)
                 Text("让开始，轻一点。").font(.system(size: 12)).foregroundStyle(quiet).padding(.bottom, 32)
                 nav("today", "今天的事", "sun.max")
+                nav("inbox", "收集箱", "tray")
                 nav("time", "时间记录", "calendar")
                 nav("history", "专注记录", "clock")
                 nav("sites", "屏蔽网站", "hand.raised")
@@ -43,7 +44,8 @@ struct MainView: View {
             } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 24) {
-                        if model.page == "sites" { BlockedSitesView(model: model) }
+                        if model.page == "inbox" { InboxView(model: model) }
+                        else if model.page == "sites" { BlockedSitesView(model: model) }
                         else if model.page == "history" { history }
                         else { today }
                     }.padding(32).frame(maxWidth: .infinity, alignment: .leading)

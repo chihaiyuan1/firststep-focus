@@ -16,6 +16,7 @@ import FocusCore
     @Published var logScope = "week"
     @Published var timeLogError: String?
     @Published var lastDeletedTimeID: String?
+    @Published var lastDeletedInboxID: String?
     let timeLogStore: TimeLogStore
     private var timeLogModified: Date?
     let store: StateStore
@@ -26,6 +27,19 @@ import FocusCore
     init(store: StateStore = StateStore()) { self.store = store; self.timeLogStore = TimeLogStore(directory: store.directory); refresh(); timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in Task { @MainActor in self?.refresh() } } }
     var extensionConnected: Bool { now - (state.lastExtensionSeen ?? 0) < 8 && state.extensionError == nil && state.extensionProtocol == 2 }
     var blockedSites: [BlockedSite] { state.effectiveBlockedSites }
+    var inboxItems: [InboxItem] { Array(state.activeInboxItems.reversed()) }
+    @discardableResult func moveInboxToToday(_ id: String) -> Bool {
+        guard send(Command("moveInboxToday", taskID: id)) else { return false }
+        if state.session == nil { selectedTask = id }
+        page = "today"
+        return true
+    }
+    func removeInboxItem(_ id: String) {
+        if send(Command("deleteInbox", taskID: id)) { lastDeletedInboxID = id }
+    }
+    func undoInboxDeletion() {
+        if let id = lastDeletedInboxID, send(Command("restoreInbox", taskID: id)) { lastDeletedInboxID = nil }
+    }
     var extensionConnectionLabel: String {
         if state.lastExtensionSeen != nil && state.extensionProtocol != 2 { return "Chrome 扩展待更新" }
         if state.extensionError != nil { return "Chrome 连接异常" }

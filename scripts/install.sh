@@ -3,12 +3,18 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 if [ ! -x 'dist/先做一刻.app/Contents/MacOS/FirstStep' ]; then ./scripts/build.sh; fi
 python3 - <<'PY'
-import base64, hashlib, json, os, shutil, subprocess
+import base64, hashlib, json, os, shutil, signal, subprocess
 from datetime import datetime
 from pathlib import Path
 root=Path.cwd(); app_dir=Path.home()/'Applications'; app_dir.mkdir(exist_ok=True)
 app=app_dir/'先做一刻.app'; support=Path.home()/'Library/Application Support/FirstStep'; support.mkdir(parents=True,exist_ok=True);support.chmod(0o700)
 source=root/'dist/先做一刻.app'
+processes=[]
+for line in subprocess.check_output(['/bin/ps','-axo','pid=,comm='],text=True).splitlines():
+    pair=line.strip().split(None,1)
+    if len(pair)==2:processes.append((int(pair[0]),pair[1]))
+if any(command==str(app/'Contents/MacOS/FirstStep') for _,command in processes):
+    raise SystemExit('请先结束专注并退出已打开的「先做一刻」，再运行安装；原应用和数据未修改。')
 shutil.copy2(root/'安装说明.md',support/'安装说明.md')
 if app.exists():
     old_id=subprocess.run(['/usr/libexec/PlistBuddy','-c','Print :CFBundleIdentifier',str(app/'Contents/Info.plist')],capture_output=True,text=True).stdout.strip()
@@ -29,6 +35,10 @@ if host_file.exists():
     old=json.loads(host_file.read_text())
     if old.get('name')!=host['name']:raise SystemExit('发现冲突的本地主机配置，未覆盖。')
 host_file.write_text(json.dumps(host,ensure_ascii=False,indent=2)+'\n');host_file.chmod(0o600)
+for pid,command in processes:
+    if command==str(app/'Contents/MacOS/FirstStepNative'):
+        try:os.kill(pid,signal.SIGTERM)
+        except ProcessLookupError:pass
 print('应用：'+str(app));print('扩展文件夹：'+str(extension));print('扩展 ID：'+extension_id)
 print('安装说明：'+str(support/'安装说明.md'))
 print('首次使用请按安装说明加载 Chrome 扩展；已安装扩展无需重新选择文件夹。升级扩展后请在 Chrome 重新加载并确认新增权限。')

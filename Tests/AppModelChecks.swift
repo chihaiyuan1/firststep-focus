@@ -16,6 +16,15 @@ import FocusCore
         model.completion = nil
         _ = model.send(Command("getState"))
         guard model.completion == nil else { print("FAIL: completion must not repeat"); exit(1) }
-        print("PASS: AppModel command-triggered completion and no duplicate notification")
+        guard model.send(Command("addInbox", title: "暂存标题")), let inboxID = model.state.activeInboxItems.first?.id else { throw FocusError("Capture failed") }
+        model.page = "inbox"
+        guard model.moveInboxToToday(inboxID), model.page == "today", model.selectedTask == inboxID,
+              model.state.session == nil, model.todayTasks.contains(where: { $0.id == inboxID }), model.state.activeInboxItems.isEmpty else { throw FocusError("Promotion must select the new Today task without starting") }
+        guard model.send(Command("addInbox", title: "可撤销")), let deletedID = model.state.activeInboxItems.first?.id else { throw FocusError("Second capture failed") }
+        model.removeInboxItem(deletedID)
+        guard model.state.activeInboxItems.isEmpty, model.lastDeletedInboxID == deletedID else { throw FocusError("Delete failed") }
+        model.undoInboxDeletion()
+        guard model.state.activeInboxItems.first?.id == deletedID, model.lastDeletedInboxID == nil else { throw FocusError("Undo failed") }
+        print("PASS: AppModel completion notifications, inbox-to-Today selection without auto-start, delete and undo")
     }
 }

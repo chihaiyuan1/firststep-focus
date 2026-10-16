@@ -2,7 +2,7 @@
 
 <p align="center"><img src="assets/AppIcon.png" width="128" alt="先做一刻图标"></p>
 
-本地运行的 macOS 专注工具：任务、悬浮番茄钟、Chrome 分心网站屏蔽，以及每天 07:00–20:00 的手动时间记录。MIT 开源。
+本地运行的 macOS 专注工具：任务收集箱、悬浮番茄钟、Chrome 分心网站屏蔽，以及每天 07:00–20:00 的手动时间记录。MIT 开源。
 
 Mac 自用的轻量专注工具：写下今天的核心任务，选 15 / 25 / 30 / 45 分钟开始。右上角悬浮小窗显示当前任务与倒计时；Chrome 扩展暂时屏蔽你设置的网站，初始包含雪球、X、微博。
 
@@ -16,6 +16,8 @@ python3 --version
 ```
 
 如果已安装 Command Line Tools，可跳过第一条。
+
+升级前先结束专注并退出旧应用。安装程序会更新本地主机并让已连接的扩展自动重连，保留已有记录。应用 0.4.0 继续使用扩展 0.2.0，无需再次授权网站权限。
 
 1. 双击本目录的 `安装.command`。应用安装到 `~/Applications/先做一刻.app`，随后自动打开。
 2. 按 [安装说明](安装说明.md) 在自己的 Chrome 中加载本地扩展。已安装并连接的用户可以跳过。
@@ -37,6 +39,15 @@ Chrome 中打开 `chrome://extensions` → 开启「开发者模式」→「加�
 - 浮窗可以拖动；菜单栏的倒计时可以重新打开主窗口。不会强制自动开始下一轮。
 - 记录只保存在本机。临时放行时段从记录的专注时间中扣除；这表示可用时段，不监视你是否实际浏览。
 - 主动停用扩展仍能绕过。扩展断连时按已知截止时间解除；电脑休眠期间不会唤醒电脑，恢复后重新核对时间。
+
+## 收集箱
+
+左侧点击「收集箱」，输入一个标题并按回车或点「收进来」，先暂存生活杂事和工作待办。只填写标题，最多 120 个字，不会自动排进今天，也不会启动番茄钟。
+
+- 可以修改标题，删除后可点「撤销删除」。条目按新加入的在前显示，退出应用后仍会保留。
+- 准备处理时点「移到今天」：从收集箱移出，在「今天的事」中选中该任务；之后自行选择时长并开始。
+- 正在专注时也可以先记一件事、或把它排到今天，当前倒计时不会中断或自动切换任务。
+- 定期回看，把准备做的事改写成一个能开始的动作。本功能采用 GTD 的收集和下一步行动思路，界面保留一张简单暂存清单。[GTD 官方流程](https://gettingthingsdone.com/what-is-gtd/)
 
 ## 屏蔽网站
 
@@ -73,6 +84,7 @@ Chrome 中打开 `chrome://extensions` → 开启「开发者模式」→「加�
 
 ```sh
 ./scripts/test-core.sh
+./scripts/test-inbox.sh
 ./scripts/test-blocked-sites.sh
 ./scripts/test-time-log.sh
 ./scripts/build.sh
@@ -84,7 +96,7 @@ python3 Tests/native_protocol.py
 
 应用使用本地 ad-hoc 签名，仅供本机使用，没有 Apple 公证。测试结果及实机验证范围见 `docs/verification.md`。
 
-实现：SwiftUI / AppKit + Chrome Manifest V3 + Native Messaging。Swift 状态机负责等待和放行；文件锁与原子写入避免多进程覆盖。扩展通过 Chrome DNR 匹配配置的域名，不读取网页正文；不修改系统 hosts 文件。专注数据升级为 schema 2，旧版主机拒绝写入，避免覆盖新增的网站设置；时间记录文件格式不变。
+实现：SwiftUI / AppKit + Chrome Manifest V3 + Native Messaging。Swift 状态机负责等待和放行；文件锁与原子写入避免多进程覆盖。扩展通过 Chrome DNR 匹配配置的域名，不读取网页正文；不修改系统 hosts 文件。状态文件升级为 schema 3，兼容迁移 1/2，旧版主机拒绝写入。收集箱到今天的转移使用同一次事务，收集箱内容不发送给 Chrome；时间记录文件格式不变。
 
 接口依据（核查日期 2026-10-16）：[Chrome DNR](https://developer.chrome.com/docs/extensions/reference/api/declarativeNetRequest)、[Native Messaging](https://developer.chrome.com/docs/extensions/develop/concepts/native-messaging)。
 

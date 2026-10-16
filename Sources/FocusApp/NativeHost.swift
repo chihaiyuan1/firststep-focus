@@ -24,7 +24,9 @@ func runNativeHost() {
             guard ["getState", "heartbeat", "requestAccess", "confirmAccess", "cancelRequest"].contains(command.action) else {
                 throw FocusError("此操作请在 Mac 工具中完成")
             }
-            reply = HostReply(id: request.id, ok: true, state: try store.transact(command: command), error: nil)
+            var state = try store.transact(command: command)
+            state.inboxItems = nil
+            reply = HostReply(id: request.id, ok: true, state: state, error: nil)
         } catch { reply = HostReply(id: requestID, ok: false, state: nil, error: error.localizedDescription) }
         guard let encoded = try? JSONEncoder().encode(reply) else { return }
         var size = UInt32(encoded.count).littleEndian

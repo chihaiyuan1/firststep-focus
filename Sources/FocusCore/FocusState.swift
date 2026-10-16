@@ -62,7 +62,7 @@ public struct FocusError: LocalizedError {
     public var errorDescription: String? { message }
 }
 public struct FocusState: Codable {
-    public var schema = 2
+    public var schema = 3
     public var tasks: [FocusTask] = []
     public var session: Session?
     public var history: [FocusRecord] = []
@@ -72,6 +72,7 @@ public struct FocusState: Codable {
     public var extensionError: String?
     public var extensionProtocol: Int?
     public var blockedSites: [BlockedSite]?
+    public var inboxItems: [InboxItem]?
     public init() {}
     public var effectiveBlockedSites: [BlockedSite] { blockedSites ?? BlockedSite.defaults }
     public func canonicalBlockedSite(_ value: String) -> String? {
@@ -116,6 +117,7 @@ public struct FocusState: Codable {
         }
         switch c.action {
         case "getState": break
+        case "addInbox", "editInbox", "deleteInbox", "restoreInbox", "moveInboxToday": try applyInbox(c, now: now)
         case "heartbeat": lastExtensionSeen = now; extensionError = c.reason?.isEmpty == false ? c.reason : nil; extensionProtocol = c.protocolVersion
         case "addBlockedSite", "removeBlockedSite":
             guard session == nil else { throw FocusError("这一轮结束后再修改屏蔽网站；临时访问仍需等待 30 秒") }
