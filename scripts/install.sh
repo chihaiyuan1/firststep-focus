@@ -9,6 +9,7 @@ from pathlib import Path
 root=Path.cwd(); app_dir=Path.home()/'Applications'; app_dir.mkdir(exist_ok=True)
 app=app_dir/'先做一刻.app'; support=Path.home()/'Library/Application Support/FirstStep'; support.mkdir(parents=True,exist_ok=True);support.chmod(0o700)
 source=root/'dist/先做一刻.app'
+shutil.copy2(root/'安装说明.md',support/'安装说明.md')
 if app.exists():
     old_id=subprocess.run(['/usr/libexec/PlistBuddy','-c','Print :CFBundleIdentifier',str(app/'Contents/Info.plist')],capture_output=True,text=True).stdout.strip()
     if old_id!='com.dayuan.firststep':raise SystemExit('发现其他同名应用，已停止，未覆盖。')
@@ -29,5 +30,7 @@ if host_file.exists():
     if old.get('name')!=host['name']:raise SystemExit('发现冲突的本地主机配置，未覆盖。')
 host_file.write_text(json.dumps(host,ensure_ascii=False,indent=2)+'\n');host_file.chmod(0o600)
 print('应用：'+str(app));print('扩展文件夹：'+str(extension));print('扩展 ID：'+extension_id)
+print('安装说明：'+str(support/'安装说明.md'))
+print('首次使用请按安装说明加载 Chrome 扩展；已安装扩展无需重复加载。')
 subprocess.run(['/usr/bin/open',str(app)],check=True)
 PY

@@ -45,7 +45,7 @@ struct TimeLogView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 7) { Text("时间记录").font(.system(size: 26, weight: .semibold)); Text("把一天的去向，慢慢记下来。").font(.system(size: 12)).foregroundStyle(logQuiet) }
+                VStack(alignment: .leading, spacing: 7) { Text("时间记录").font(.system(size: 26, weight: .semibold)); Text("手动记下工作、生活与休息，回看一天的时间去向。").font(.system(size: 12)).foregroundStyle(logQuiet) }
                 Spacer()
                 Button { newEntry(date: model.selectedLogDate, start: 540, end: 570) } label: { Label("新增记录", systemImage: "plus") }.buttonStyle(SoftButton())
             }

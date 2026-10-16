@@ -76,9 +76,5 @@ import FocusCore
         if send(Command("confirmEnd", requestID: state.pending?.id)), wantsQuit { NSApp.terminate(nil) }
     }
     func cancelEnd() { wantsQuit = false; _ = send(Command("cancelRequest")) }
-    var extensionDirectory: URL { FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/FirstStep/ChromeExtension") }
-    func revealExtension() { NSWorkspace.shared.open(extensionDirectory) }
-    func copyExtensionPath() { NSPasteboard.general.clearContents(); NSPasteboard.general.setString(extensionDirectory.path, forType: .string) }
-    func copyExtensionsAddress() { NSPasteboard.general.clearContents(); NSPasteboard.general.setString("chrome://extensions", forType: .string) }
 }
 func clockText(_ value: Double) -> String { let s = max(0, Int(ceil(value))); return String(format: "%02d:%02d", s / 60, s % 60) }

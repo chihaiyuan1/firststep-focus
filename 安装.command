@@ -2,4 +2,4 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 ./scripts/install.sh
-printf '\n安装完成。请按应用内「连接 Chrome」指引加载扩展。\n'
+printf '\n安装完成。首次使用请阅读同目录的「安装说明.md」；已连接 Chrome 可直接使用。\n'

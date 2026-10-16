@@ -28,7 +28,6 @@ struct MainView: View {
                 nav("today", "今天的事", "sun.max")
                 nav("time", "时间记录", "calendar")
                 nav("history", "专注记录", "clock")
-                nav("setup", "连接 Chrome", "link")
                 Spacer()
                 VStack(alignment: .leading, spacing: 10) {
                     Text("今天已专注").font(.system(size: 11)).foregroundStyle(quiet)
@@ -43,9 +42,8 @@ struct MainView: View {
             } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 24) {
-                        if model.page == "today" { today }
-                        else if model.page == "history" { history }
-                        else { setup }
+                        if model.page == "history" { history }
+                        else { today }
                     }.padding(32).frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
@@ -115,7 +113,7 @@ struct MainView: View {
         }
     }
     private var connectionHint: some View {
-        HStack(alignment: .top, spacing: 7) { Image(systemName: model.extensionConnected ? "checkmark.shield" : "exclamationmark.circle"); Text(model.extensionConnected ? "专注期间限制雪球、X、微博。" : "Chrome 尚未连接，目前只能计时。请先完成左侧的连接步骤。") }.font(.system(size: 11)).foregroundStyle(model.extensionConnected ? sage : Color(red: 0.60, green: 0.43, blue: 0.25))
+        HStack(alignment: .top, spacing: 7) { Image(systemName: model.extensionConnected ? "checkmark.shield" : "exclamationmark.circle"); Text(model.extensionConnected ? "专注期间限制雪球、X、微博。" : "Chrome 未连接，目前仅计时，不会屏蔽网站。请检查扩展是否启用，首次安装见「安装说明.md」。") }.font(.system(size: 11)).foregroundStyle(model.extensionConnected ? sage : Color(red: 0.60, green: 0.43, blue: 0.25))
     }
     private func taskRow(_ task: FocusTask) -> some View {
         HStack(spacing: 12) {
@@ -133,29 +131,12 @@ struct MainView: View {
     private var history: some View {
         VStack(alignment: .leading, spacing: 22) {
             Text("每一小段，都算数").font(.system(size: 26, weight: .semibold))
-            Text("记录你真正留给任务的时间，临时开放网站的时段不计入专注。记录只保存在这台 Mac。").font(.system(size: 13)).foregroundStyle(quiet)
+            Text("番茄钟结束后自动记录，临时开放网站的时段不计入专注。日常活动可在「时间记录」中手动填写，无需在两处重复记录。").font(.system(size: 13)).foregroundStyle(quiet)
             if model.state.history.isEmpty { Text("完成第一轮后，这里会留下记录。").foregroundStyle(quiet).padding(.vertical, 40) }
             ForEach(model.state.history) { r in
                 HStack { VStack(alignment: .leading, spacing: 7) { Text(r.title).font(.system(size: 14, weight: .medium)); Text(Date(timeIntervalSince1970: r.startAt), format: .dateTime.month().day().hour().minute()).font(.system(size: 11)).foregroundStyle(quiet); Text("\(r.finished ? "完成一轮" : "提前结束") · 临时访问 \(r.accessCount) 次").font(.system(size: 11)).foregroundStyle(quiet) }; Spacer(); Text("\(Int(r.focusSeconds / 60)) 分钟").font(.system(size: 17, weight: .medium, design: .rounded)) }.padding(18).background(.white.opacity(0.7), in: RoundedRectangle(cornerRadius: 12))
             }
         }
-    }
-    private var setup: some View {
-        VStack(alignment: .leading, spacing: 22) {
-            Text("把信息流，留到稍后").font(.system(size: 26, weight: .semibold))
-            Label(model.extensionConnected ? "Chrome 已连接，可以开始专注了" : "首次使用，只需连接一次", systemImage: model.extensionConnected ? "checkmark.circle.fill" : "link").foregroundStyle(sage)
-            setupStep("1", "打开 Chrome 的扩展管理", "在你自己的 Chrome 地址栏粘贴 chrome://extensions，打开右上角「开发者模式」。")
-            Button("复制扩展管理地址") { model.copyExtensionsAddress() }.buttonStyle(SoftButton())
-            setupStep("2", "加载本地扩展", "点击「加载已解压的扩展程序」。在文件选择框按 ⌘⇧G，粘贴下面的文件夹路径，然后选择这个文件夹。")
-            Text(model.extensionDirectory.path).font(.system(size: 11, design: .monospaced)).textSelection(.enabled).padding(14).frame(maxWidth: .infinity, alignment: .leading).background(.white.opacity(0.7), in: RoundedRectangle(cornerRadius: 10))
-            HStack { Button("复制文件夹路径") { model.copyExtensionPath() }.buttonStyle(SoftButton(primary: true)); Button("显示文件夹") { model.revealExtension() }.buttonStyle(SoftButton()) }
-            setupStep("3", "看到「Chrome 已连接」", "回到这里，连接状态会自动更新。然后选择任务，开始 15 分钟。若使用无痕窗口，需要在扩展详情里允许无痕模式。")
-            Divider()
-            Text("专注期间：雪球、X、微博及其子域名暂时不可访问。工作网站照常打开。临时访问需等待 30 秒，再开放单个网站 5 分钟。主动停用扩展仍可绕过限制。").font(.system(size: 12)).foregroundStyle(quiet).lineSpacing(5)
-        }
-    }
-    private func setupStep(_ n: String, _ title: String, _ detail: String) -> some View {
-        HStack(alignment: .top, spacing: 12) { Text(n).font(.system(size: 12, weight: .semibold)).frame(width: 25, height: 25).background(sage.opacity(0.1), in: Circle()); VStack(alignment: .leading, spacing: 7) { Text(title).font(.system(size: 14, weight: .medium)); Text(detail).font(.system(size: 12)).foregroundStyle(quiet).lineSpacing(4) } }
     }
     private var endSheet: some View {
         VStack(alignment: .leading, spacing: 20) {
