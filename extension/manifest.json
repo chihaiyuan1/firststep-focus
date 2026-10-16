@@ -1,0 +1,46 @@
+{
+  "manifest_version": 3,
+  "name": "先做一刻 · 专注守护",
+  "version": "0.1.1",
+  "description": "配合先做一刻 Mac 工具，在专注期间暂时屏蔽雪球、X 和微博。所有记录保存在本机。",
+  "minimum_chrome_version": "120",
+  "permissions": [
+    "declarativeNetRequest",
+    "nativeMessaging",
+    "storage",
+    "alarms"
+  ],
+  "host_permissions": [
+    "*://*.xueqiu.com/*",
+    "*://*.x.com/*",
+    "*://*.twitter.com/*",
+    "*://*.weibo.com/*",
+    "*://*.weibo.cn/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "先做一刻"
+  },
+  "icons": {
+    "128": "icon128.png"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "blocked.html"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
+    }
+  ],
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAzclgwZlLilXzg3sonPVMjFOF98NpmTaHYU49G1oLgjBKMvbTcNW2x+US4RuIXTp15f+clLeD6ud4/b2ppVISJ5+wjsaHDgoGWv6A0L7xwyzkd///jjZ4n1loCjW285NzPFxdV5wJokunozPZ/0z332bX9dHjGe53s+L4dOhKXQFcZiS8NgigkentdNF6DDxj3+9RlP9ymJ58dUJ/Bp2d09urNrpbCvVT0nyNsqIP8Yot8hXfw1CF3KeNAUNhBgG6vT7b3sSjAg/OLQG/YBsSoO08CZY8pzxh+Mp14PrfKgI0e5NlAFZsocUmx1ca+e0hPNghq7Ixm+iYwcxRG4xWKQIDAQAB",
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'; frame-ancestors 'none';"
+  },
+  "incognito": "split"
+}

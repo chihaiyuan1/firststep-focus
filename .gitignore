@@ -1,0 +1,16 @@
+.build/
+dist/
+.DS_Store
+*.log
+
+# Local runtime and development records
+.swiftpm/
+.env
+.env.*
+state.json
+time-records.json
+*.lock
+.local/
+docs/progress.md
+docs/superpowers/
+design/icon-options/
