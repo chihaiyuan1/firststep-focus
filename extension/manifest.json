@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "先做一刻 · 专注守护",
-  "version": "0.1.1",
-  "description": "配合先做一刻 Mac 工具，在专注期间暂时屏蔽雪球、X 和微博。所有记录保存在本机。",
+  "version": "0.2.0",
+  "description": "配合先做一刻 Mac 工具，在专注期间屏蔽你设置的网站。所有记录保存在本机。",
   "minimum_chrome_version": "120",
   "permissions": [
     "declarativeNetRequest",
@@ -11,11 +11,8 @@
     "alarms"
   ],
   "host_permissions": [
-    "*://*.xueqiu.com/*",
-    "*://*.x.com/*",
-    "*://*.twitter.com/*",
-    "*://*.weibo.com/*",
-    "*://*.weibo.cn/*"
+    "http://*/*",
+    "https://*/*"
   ],
   "background": {
     "service_worker": "background.js",

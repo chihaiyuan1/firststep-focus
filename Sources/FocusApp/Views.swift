@@ -28,12 +28,13 @@ struct MainView: View {
                 nav("today", "今天的事", "sun.max")
                 nav("time", "时间记录", "calendar")
                 nav("history", "专注记录", "clock")
+                nav("sites", "屏蔽网站", "hand.raised")
                 Spacer()
                 VStack(alignment: .leading, spacing: 10) {
                     Text("今天已专注").font(.system(size: 11)).foregroundStyle(quiet)
                     HStack(alignment: .firstTextBaseline, spacing: 4) { Text("\(model.todayMinutes)").font(.system(size: 35, weight: .light, design: .rounded)); Text("分钟").font(.system(size: 11)).foregroundStyle(quiet) }
                     Divider()
-                    Label(model.extensionConnected ? "Chrome 已连接" : "Chrome 未连接", systemImage: model.extensionConnected ? "checkmark.circle.fill" : "circle.dashed")
+                    Label(model.extensionConnectionLabel, systemImage: model.extensionConnected ? "checkmark.circle.fill" : "circle.dashed")
                         .font(.system(size: 11)).foregroundStyle(model.extensionConnected ? sage : quiet)
                 }
             }.padding(24).frame(width: 190).frame(maxHeight: .infinity).background(Color.white.opacity(0.6))
@@ -42,7 +43,8 @@ struct MainView: View {
             } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 24) {
-                        if model.page == "history" { history }
+                        if model.page == "sites" { BlockedSitesView(model: model) }
+                        else if model.page == "history" { history }
                         else { today }
                     }.padding(32).frame(maxWidth: .infinity, alignment: .leading)
                 }
@@ -113,7 +115,7 @@ struct MainView: View {
         }
     }
     private var connectionHint: some View {
-        HStack(alignment: .top, spacing: 7) { Image(systemName: model.extensionConnected ? "checkmark.shield" : "exclamationmark.circle"); Text(model.extensionConnected ? "专注期间限制雪球、X、微博。" : "Chrome 未连接，目前仅计时，不会屏蔽网站。请检查扩展是否启用，首次安装见「安装说明.md」。") }.font(.system(size: 11)).foregroundStyle(model.extensionConnected ? sage : Color(red: 0.60, green: 0.43, blue: 0.25))
+        HStack(alignment: .top, spacing: 7) { Image(systemName: model.extensionConnected ? "checkmark.shield" : "exclamationmark.circle"); Text(model.extensionConnected ? (model.blockedSites.isEmpty ? "屏蔽列表为空，本轮仅计时。" : "专注期间屏蔽列表中的 \(model.blockedSites.count) 组网站。") : model.extensionConnectionHint) }.font(.system(size: 11)).foregroundStyle(model.extensionConnected ? sage : Color(red: 0.60, green: 0.43, blue: 0.25))
     }
     private func taskRow(_ task: FocusTask) -> some View {
         HStack(spacing: 12) {

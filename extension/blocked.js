@@ -1,9 +1,11 @@
 import {groupForURL,originalURL,activeSession,timeText,blocked} from './policy.js';
-const $=id=>document.getElementById(id), original=originalURL(location.href,chrome.runtime.getURL('blocked.html')),site=groupForURL(original);
+const $=id=>document.getElementById(id), original=originalURL(location.href,chrome.runtime.getURL('blocked.html'));
+let site=null;
 let state={},online=false,busy=false,editing=false;
 async function call(message){const r=await chrome.runtime.sendMessage(message);if(!r?.ok)throw new Error(r?.error||'无法连接扩展');state=r.state;online=r.online;return r;}
 function render(){
  const now=Date.now()/1000,s=activeSession(state,now),p=state.pending;
+ site=groupForURL(original,state);
  $('task').textContent=s?.title??'这一轮已结束';$('step').textContent=s?.nextStep?`下一步：${s.nextStep}`:'';
  $('timer').textContent=s?timeText(s.endAt-now):'00:00';
  $('request').disabled=!s||!online||!site;

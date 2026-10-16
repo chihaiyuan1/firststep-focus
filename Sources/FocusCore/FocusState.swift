@@ -49,9 +49,11 @@ public struct Command: Codable {
     public var site: String?
     public var requestID: String?
     public var reason: String?
-    public init(_ action: String, taskID: String? = nil, title: String? = nil, nextStep: String? = nil, minutes: Int? = nil, site: String? = nil, requestID: String? = nil, reason: String? = nil) {
+    public var protocolVersion: Int?
+    public init(_ action: String, taskID: String? = nil, title: String? = nil, nextStep: String? = nil, minutes: Int? = nil, site: String? = nil, requestID: String? = nil, reason: String? = nil, protocolVersion: Int? = nil) {
         self.action = action; self.taskID = taskID; self.title = title; self.nextStep = nextStep
         self.minutes = minutes; self.site = site; self.requestID = requestID; self.reason = reason
+        self.protocolVersion = protocolVersion
     }
 }
 public struct FocusError: LocalizedError {
@@ -60,7 +62,7 @@ public struct FocusError: LocalizedError {
     public var errorDescription: String? { message }
 }
 public struct FocusState: Codable {
-    public var schema = 1
+    public var schema = 2
     public var tasks: [FocusTask] = []
     public var session: Session?
     public var history: [FocusRecord] = []
@@ -68,7 +70,14 @@ public struct FocusState: Codable {
     public var breakUntil: Double?
     public var lastExtensionSeen: Double?
     public var extensionError: String?
+    public var extensionProtocol: Int?
+    public var blockedSites: [BlockedSite]?
     public init() {}
+    public var effectiveBlockedSites: [BlockedSite] { blockedSites ?? BlockedSite.defaults }
+    public func canonicalBlockedSite(_ value: String) -> String? {
+        guard let host = try? BlockedSite.normalizedDomain(value) else { return nil }
+        return BlockedSite.matching(host, in: effectiveBlockedSites)
+    }
 
     public static func day(at time: Double) -> String {
         let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; f.locale = Locale(identifier: "en_US_POSIX")
@@ -107,7 +116,22 @@ public struct FocusState: Codable {
         }
         switch c.action {
         case "getState": break
-        case "heartbeat": lastExtensionSeen = now; extensionError = c.reason?.isEmpty == false ? c.reason : nil
+        case "heartbeat": lastExtensionSeen = now; extensionError = c.reason?.isEmpty == false ? c.reason : nil; extensionProtocol = c.protocolVersion
+        case "addBlockedSite", "removeBlockedSite":
+            guard session == nil else { throw FocusError("这一轮结束后再修改屏蔽网站；临时访问仍需等待 30 秒") }
+            let domain = try BlockedSite.normalizedDomain(c.site ?? "")
+            var sites = effectiveBlockedSites
+            if c.action == "addBlockedSite" {
+                if let existing = sites.first(where: { $0.domains.contains(where: { BlockedSite.overlaps($0, domain) }) }) {
+                    throw FocusError("与已有网站 \(existing.site) 的范围重叠，无需重复添加；如需扩大范围，请先移除原项")
+                }
+                guard sites.count < 100 else { throw FocusError("最多可设置 100 个网站") }
+                sites.append(BlockedSite(site: domain, name: domain, domains: [domain]))
+            } else {
+                guard sites.contains(where: { $0.site == domain }) else { throw FocusError("这个网站不在屏蔽列表中") }
+                sites.removeAll { $0.site == domain }
+            }
+            blockedSites = sites
         case "addTask":
             let title = text(c.title); guard !title.isEmpty else { throw FocusError("先写下你想做的事") }
             tasks.append(FocusTask(title: title, nextStep: text(c.nextStep, maxLength: 180), day: Self.day(at: now)))
@@ -131,7 +155,7 @@ public struct FocusState: Codable {
             breakUntil = nil; pending = nil
         case "requestAccess", "requestEnd":
             guard let s = session else { throw FocusError("当前没有正在进行的专注") }
-            let site = Self.canonicalSite(c.site ?? "")
+            let site = canonicalBlockedSite(c.site ?? "")
             if c.action == "requestAccess" && site == nil { throw FocusError("这个网站不在限制名单里") }
             let kind = c.action == "requestEnd" ? "end" : "access"
             if let existing = pending, existing.kind == kind, existing.site == site { return }

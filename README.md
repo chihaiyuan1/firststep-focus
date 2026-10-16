@@ -4,7 +4,7 @@
 
 本地运行的 macOS 专注工具：任务、悬浮番茄钟、Chrome 分心网站屏蔽，以及每天 07:00–20:00 的手动时间记录。MIT 开源。
 
-Mac 自用的轻量专注工具：写下今天的核心任务，选 15 / 25 / 30 / 45 分钟开始。右上角悬浮小窗显示当前任务与倒计时；Chrome 扩展暂时屏蔽雪球、X、微博。
+Mac 自用的轻量专注工具：写下今天的核心任务，选 15 / 25 / 30 / 45 分钟开始。右上角悬浮小窗显示当前任务与倒计时；Chrome 扩展暂时屏蔽你设置的网站，初始包含雪球、X、微博。
 
 ## 首次使用
 
@@ -26,6 +26,8 @@ Chrome 中打开 `chrome://extensions` → 开启「开发者模式」→「加�
 
 无痕窗口需要在扩展详情中单独允许；其他 Chrome 用户配置需要分别加载。其他浏览器不在本版本的限制范围内。
 
+从旧版升级到应用 0.3.0 / 扩展 0.2.0 后，请在 `chrome://extensions` 重新加载扩展，确认新增的网站权限；在扩展详情中允许访问所有网站。应用会检测旧扩展和权限缺失，未就绪时明确提示仅计时。
+
 ## 使用约定
 
 - 默认 15 分钟，下一步可不填。任务保留，未完成的任务次日仍可继续。
@@ -35,6 +37,18 @@ Chrome 中打开 `chrome://extensions` → 开启「开发者模式」→「加�
 - 浮窗可以拖动；菜单栏的倒计时可以重新打开主窗口。不会强制自动开始下一轮。
 - 记录只保存在本机。临时放行时段从记录的专注时间中扣除；这表示可用时段，不监视你是否实际浏览。
 - 主动停用扩展仍能绕过。扩展断连时按已知截止时间解除；电脑休眠期间不会唤醒电脑，恢复后重新核对时间。
+
+## 屏蔽网站
+
+左侧点击「屏蔽网站」，粘贴完整网址或域名，查看预览后点击「加入屏蔽」。例如 `https://www.bilibili.com/video/abc?from=home` 会保存为 `bilibili.com`，覆盖该域名及其子域。路径、参数和片段不会保存。
+
+- 仅在番茄钟专注期间生效，结束后恢复访问；已经打开的匹配页面也会进入拦截页。
+- 按输入域名屏蔽，不会自动扩大到上级域名：添加 `news.example.com` 不会屏蔽 `work.example.com`。常见的 `www.` 前缀会去掉。
+- 初始包含雪球、X/Twitter、微博。可添加、移除，最多 100 组；同一网站与范围重叠的域名不能重复添加。
+- 专注期间禁止增删列表；自定义网站也支持原有 30 秒等待后的单站 5 分钟临时访问。
+- 列表为空时仅计时。只支持网站域名，不支持 IP、本机地址或 `chrome://` 等浏览器内部页面。
+
+为方便以后只在 Mac 粘贴网址就加入屏蔽，扩展需要一次性获得 HTTP(S) 网站访问权限。程序只根据列表匹配页面地址，不读取网页正文，也不上传浏览记录；工作网站不会因为授予权限而进入屏蔽列表。
 
 ## 时间记录
 
@@ -59,6 +73,7 @@ Chrome 中打开 `chrome://extensions` → 开启「开发者模式」→「加�
 
 ```sh
 ./scripts/test-core.sh
+./scripts/test-blocked-sites.sh
 ./scripts/test-time-log.sh
 ./scripts/build.sh
 node --test Tests/*.test.mjs
@@ -69,7 +84,7 @@ python3 Tests/native_protocol.py
 
 应用使用本地 ad-hoc 签名，仅供本机使用，没有 Apple 公证。测试结果及实机验证范围见 `docs/verification.md`。
 
-实现：SwiftUI / AppKit + Chrome Manifest V3 + Native Messaging。Swift 状态机负责等待和放行；文件锁与原子写入避免多进程覆盖。扩展只申请受限站点权限，不读取工作网站正文；不修改系统 hosts 文件。
+实现：SwiftUI / AppKit + Chrome Manifest V3 + Native Messaging。Swift 状态机负责等待和放行；文件锁与原子写入避免多进程覆盖。扩展通过 Chrome DNR 匹配配置的域名，不读取网页正文；不修改系统 hosts 文件。专注数据升级为 schema 2，旧版主机拒绝写入，避免覆盖新增的网站设置；时间记录文件格式不变。
 
 接口依据（核查日期 2026-10-16）：[Chrome DNR](https://developer.chrome.com/docs/extensions/reference/api/declarativeNetRequest)、[Native Messaging](https://developer.chrome.com/docs/extensions/develop/concepts/native-messaging)。
 

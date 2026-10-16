@@ -1,7 +1,10 @@
 import {Controller} from './controller.js';
 const controller=new Controller(chrome);
 const waiting=new Map();let port=null,lastSuccess=0,connectionError='',syncing=false;
-const initialized=chrome.storage.local.get('snapshot').then(async saved=>{await controller.setState(saved.snapshot??{});});
+const initialized=(async()=>{
+ try {const saved=await chrome.storage.local.get('snapshot');await controller.setState(saved.snapshot??{});}
+ catch(error){connectionError=error.message;}
+})();
 function connect() {
  if(port)return;
  try {
@@ -34,8 +37,8 @@ async function sync() {
  try {
   await initialized;
   const state=await native({action:'getState'});
-  try {await accept(state);await native({action:'heartbeat'});}
-  catch(error){await native({action:'heartbeat',reason:error.message});throw error;}
+  try {await accept(state);await native({action:'heartbeat',protocolVersion:2});}
+  catch(error){await native({action:'heartbeat',reason:error.message,protocolVersion:2});throw error;}
  }catch(error){connectionError=error.message;await controller.reconcile().catch(()=>{});}
  finally{syncing=false;}
 }

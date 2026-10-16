@@ -22,7 +22,9 @@ with tempfile.TemporaryDirectory() as temp:
             response=json.loads(read_exact(size));assert response['id']=='test';return response
         first=request({'action':'getState'},True)
         assert first['ok'] and first['state']['tasks']==[]
+        assert first['state']['schema']==2
         assert not request({'action':'addTask','title':'禁止从扩展写入'})['ok']
+        assert not request({'action':'addBlockedSite','site':'example.com'})['ok']
         now=time.time();s=first['state'];s['session']={'id':'focus','taskID':'task','title':'协议测试','nextStep':'一步','startAt':now,'endAt':now+900,'allowances':[]}
         file=Path(temp)/'state.json';file.write_text(json.dumps(s))
         r=request({'action':'requestAccess','site':'x.com'});assert r['ok']
@@ -32,7 +34,8 @@ with tempfile.TemporaryDirectory() as temp:
         r=request({'action':'confirmAccess','requestID':req['id']});assert r['ok']
         a=r['state']['session']['allowances'][0];assert a['site']=='x.com' and 299<a['endAt']-time.time()<=300
         s=r['state'];s['session']['endAt']=time.time()-1;file.write_text(json.dumps(s))
-        r=request({'action':'heartbeat'});assert r['ok'] and 'session' not in r['state'] and len(r['state']['history'])==1
+        r=request({'action':'heartbeat','protocolVersion':2});assert r['ok'] and 'session' not in r['state'] and len(r['state']['history'])==1
+        assert r['state']['extensionProtocol']==2
         assert request({'action':'getState'})['ok']
         print('PASS: native binary framing, fragmented reads, command restrictions, delayed access, deadline release')
     finally:

@@ -24,7 +24,18 @@ import FocusCore
     var showMain: (() -> Void)?
     var toggleFloat: (() -> Void)?
     init(store: StateStore = StateStore()) { self.store = store; self.timeLogStore = TimeLogStore(directory: store.directory); refresh(); timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in Task { @MainActor in self?.refresh() } } }
-    var extensionConnected: Bool { now - (state.lastExtensionSeen ?? 0) < 8 && state.extensionError == nil }
+    var extensionConnected: Bool { now - (state.lastExtensionSeen ?? 0) < 8 && state.extensionError == nil && state.extensionProtocol == 2 }
+    var blockedSites: [BlockedSite] { state.effectiveBlockedSites }
+    var extensionConnectionLabel: String {
+        if state.lastExtensionSeen != nil && state.extensionProtocol != 2 { return "Chrome 扩展待更新" }
+        if state.extensionError != nil { return "Chrome 连接异常" }
+        return extensionConnected ? "Chrome 已连接" : "Chrome 未连接"
+    }
+    var extensionConnectionHint: String {
+        if state.lastExtensionSeen != nil && state.extensionProtocol != 2 { return "Chrome 扩展需要更新：请在 chrome://extensions 重新加载「先做一刻」，并允许访问所有网站。完成前仅计时，无法保证自定义网站已屏蔽。" }
+        if let error = state.extensionError { return error + "。当前仅计时，请先完成 Chrome 连接。" }
+        return "Chrome 未连接，目前仅计时，不会屏蔽网站。请检查扩展是否启用，首次安装见「安装说明.md」。"
+    }
     var remaining: Double { max(0, (state.session?.endAt ?? state.breakUntil ?? now) - now) }
     var todayTasks: [FocusTask] { state.tasks.filter { !$0.completed || $0.day == FocusCore.FocusState.day(at: now) } }
     var todayRecords: [FocusRecord] { state.history.filter { FocusCore.FocusState.day(at: $0.startAt) == FocusCore.FocusState.day(at: now) } }

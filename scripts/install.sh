@@ -31,6 +31,6 @@ if host_file.exists():
 host_file.write_text(json.dumps(host,ensure_ascii=False,indent=2)+'\n');host_file.chmod(0o600)
 print('应用：'+str(app));print('扩展文件夹：'+str(extension));print('扩展 ID：'+extension_id)
 print('安装说明：'+str(support/'安装说明.md'))
-print('首次使用请按安装说明加载 Chrome 扩展；已安装扩展无需重复加载。')
+print('首次使用请按安装说明加载 Chrome 扩展；已安装扩展无需重新选择文件夹。升级扩展后请在 Chrome 重新加载并确认新增权限。')
 subprocess.run(['/usr/bin/open',str(app)],check=True)
 PY
