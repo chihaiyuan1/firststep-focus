@@ -46,7 +46,7 @@ struct MainView: View {
                     VStack(alignment: .leading, spacing: 24) {
                         if model.page == "inbox" { InboxView(model: model) }
                         else if model.page == "sites" { BlockedSitesView(model: model) }
-                        else if model.page == "history" { history }
+                        else if model.page == "history" { ForestView(model: model) }
                         else { today }
                     }.padding(32).frame(maxWidth: .infinity, alignment: .leading)
                 }
@@ -131,16 +131,6 @@ struct MainView: View {
                 Divider(); Button("删除任务", role: .destructive) { deleteTask = task }
             } label: { Image(systemName: "ellipsis").frame(width: 20) }.menuStyle(.borderlessButton).frame(width: 24).disabled(model.state.session?.taskID == task.id)
         }.padding(16).background(.white.opacity(model.selectedTask == task.id ? 0.95 : 0.5), in: RoundedRectangle(cornerRadius: 12))
-    }
-    private var history: some View {
-        VStack(alignment: .leading, spacing: 22) {
-            Text("每一小段，都算数").font(.system(size: 26, weight: .semibold))
-            Text("番茄钟结束后自动记录，临时开放网站的时段不计入专注。日常活动可在「时间记录」中手动填写，无需在两处重复记录。").font(.system(size: 13)).foregroundStyle(quiet)
-            if model.state.history.isEmpty { Text("完成第一轮后，这里会留下记录。").foregroundStyle(quiet).padding(.vertical, 40) }
-            ForEach(model.state.history) { r in
-                HStack { VStack(alignment: .leading, spacing: 7) { Text(r.title).font(.system(size: 14, weight: .medium)); Text(Date(timeIntervalSince1970: r.startAt), format: .dateTime.month().day().hour().minute()).font(.system(size: 11)).foregroundStyle(quiet); Text("\(r.finished ? "完成一轮" : "提前结束") · 临时访问 \(r.accessCount) 次").font(.system(size: 11)).foregroundStyle(quiet) }; Spacer(); Text("\(Int(r.focusSeconds / 60)) 分钟").font(.system(size: 17, weight: .medium, design: .rounded)) }.padding(18).background(.white.opacity(0.7), in: RoundedRectangle(cornerRadius: 12))
-            }
-        }
     }
     private var endSheet: some View {
         VStack(alignment: .leading, spacing: 20) {
