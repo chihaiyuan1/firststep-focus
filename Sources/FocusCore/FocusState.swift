@@ -103,7 +103,7 @@ public struct FocusState: Codable {
         for (a, b) in intervals { away += max(0, b - max(right, a)); right = max(right, b) }
         history.insert(FocusRecord(id: s.id, taskID: s.taskID, title: s.title, startAt: s.startAt,
             endAt: end, focusSeconds: max(0, end - s.startAt - away), finished: finished, accessCount: s.allowances.count), at: 0)
-        history = Array(history.prefix(500)); session = nil; pending = nil
+        session = nil; pending = nil
     }
     public mutating func apply(_ c: Command, now: Double) throws {
         guard now.isFinite else { throw FocusError("时间无效") }

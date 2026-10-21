@@ -26,6 +26,8 @@ func runNativeHost() {
             }
             var state = try store.transact(command: command)
             state.inboxItems = nil
+            // Only the browser snapshot is bounded; old daily forests stay on disk.
+            state.history = Array(state.history.prefix(500))
             reply = HostReply(id: request.id, ok: true, state: state, error: nil)
         } catch { reply = HostReply(id: requestID, ok: false, state: nil, error: error.localizedDescription) }
         guard let encoded = try? JSONEncoder().encode(reply) else { return }

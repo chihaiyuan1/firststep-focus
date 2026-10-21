@@ -2,7 +2,7 @@
 import json, os, select, struct, subprocess, tempfile, time
 from pathlib import Path
 root=Path(__file__).resolve().parents[1]
-binary=root/'dist/先做一刻.app/Contents/MacOS/FirstStepNative'
+binary=Path(os.environ.get('FIRSTSTEP_TEST_NATIVE_BINARY',str(root/'dist/先做一刻.app/Contents/MacOS/FirstStepNative')))
 with tempfile.TemporaryDirectory() as temp:
     p=subprocess.Popen([str(binary)],stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,env={**os.environ,'FIRSTSTEP_DATA_DIR':temp})
     try:
@@ -41,7 +41,13 @@ with tempfile.TemporaryDirectory() as temp:
         assert 'inboxItems' not in r['state']
         assert json.loads(file.read_text())['inboxItems'][0]['id']=='inbox-test'
         assert request({'action':'getState'})['ok']
-        print('PASS: native binary framing, fragmented reads, command restrictions, delayed access, deadline release')
+        s=json.loads(file.read_text());template=s['history'][0]
+        s['history']=[{**template,'id':f'past-{i}'} for i in range(600)]
+        file.write_text(json.dumps(s))
+        r=request({'action':'getState'})
+        assert r['ok'] and len(r['state']['history'])==500,'bridge snapshot must be bounded to 500 records'
+        assert len(json.loads(file.read_text())['history'])==600,'bridge must not trim local forest history'
+        print('PASS: native framing, fragmented reads, command restrictions, delayed access, expiry, bounded bridge and preserved forest history')
     finally:
         p.stdin.close();p.wait(timeout=5)
         assert p.returncode==0,p.stderr.read().decode()
