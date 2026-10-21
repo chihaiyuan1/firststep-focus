@@ -26,7 +26,7 @@ struct ForestScene: View {
                     Button { onSelect(item.id) } label: {
                         ForestPlant(kind: item.kind, selected: selectedID == item.id)
                             .frame(width: width, height: height)
-                            .contentShape(Rectangle())
+                            .contentShape(ForestPlantHitShape(kind: item.kind))
                     }
                     .buttonStyle(.plain)
                     .position(x: geometry.size.width * slot.x,
@@ -81,7 +81,7 @@ struct ForestPlant: View {
                 var branches = Path(); branches.move(to: CGPoint(x: 1, y: -30)); branches.addLine(to: CGPoint(x: 21, y: -52))
                 branches.move(to: CGPoint(x: -1, y: -36)); branches.addLine(to: CGPoint(x: -19, y: -52))
                 context.stroke(branches, with: .color(forestColor(0xa17d51)), style: StrokeStyle(lineWidth: 4, lineCap: .round))
-                context.fill(canopy, with: .linearGradient(Gradient(colors: [forestColor(0x74a85a), forestColor(0x437a43)]), startPoint: CGPoint(x: -35, y: -130), endPoint: CGPoint(x: 40, y: -35)))
+                context.fill(Self.canopy, with: .linearGradient(Gradient(colors: [forestColor(0x74a85a), forestColor(0x437a43)]), startPoint: CGPoint(x: -35, y: -130), endPoint: CGPoint(x: 40, y: -35)))
                 ellipse(&context, -26, -132, 47, 25, 0x92bc70, opacity: 0.6)
                 ellipse(&context, -49, -104, 31, 25, 0x81b363, opacity: 0.6)
                 ellipse(&context, -14, -76, 35, 25, 0x73a657, opacity: 0.5)
@@ -90,7 +90,7 @@ struct ForestPlant: View {
         .accessibilityHidden(true)
     }
 
-    private var canopy: Path {
+    static var canopy: Path {
         var path = Path(); path.move(to: CGPoint(x: 0, y: -140))
         let curves: [(CGPoint, CGPoint, CGPoint)] = [
             (.init(x:38,y:-116), .init(x:19,y:-145), .init(x:35,y:-132)),
@@ -110,6 +110,23 @@ struct ForestPlant: View {
         let shape = Path(ellipseIn: CGRect(x: -radius, y: -14, width: radius * 2, height: 28))
         context.fill(shape, with: .color(forestColor(0xd9edb8)))
         context.stroke(shape, with: .color(forestColor(0x8eaa67)), lineWidth: 1.5)
+    }
+}
+
+struct ForestPlantHitShape: Shape {
+    let kind: ForestPlantKind
+
+    func path(in rect: CGRect) -> Path {
+        if kind == .pit {
+            let pit = Path(ellipseIn: CGRect(x: -34, y: -16, width: 68, height: 32))
+            return pit.applying(CGAffineTransform(a: rect.width / 80, b: 0, c: 0, d: rect.height / 40, tx: rect.midX, ty: rect.midY))
+        }
+        let unit = min(rect.width / 170, rect.height / 190)
+        let scale = unit * kind.scale
+        var hit = ForestPlant.canopy
+        hit.addRect(CGRect(x: -9, y: -56, width: 18, height: 60))
+        hit.addEllipse(in: CGRect(x: -30, y: -10, width: 60, height: 20))
+        return hit.applying(CGAffineTransform(a: scale, b: 0, c: 0, d: scale, tx: rect.midX, ty: rect.maxY - 12 * unit))
     }
 }
 

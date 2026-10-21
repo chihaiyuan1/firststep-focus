@@ -99,6 +99,7 @@ Chrome 中打开 `chrome://extensions` → 开启「开发者模式」→「加�
 ./scripts/test-blocked-sites.sh
 ./scripts/test-time-log.sh
 ./scripts/build.sh
+./scripts/test-forest-hit.sh
 node --test Tests/*.test.mjs
 python3 Tests/native_protocol.py
 ./scripts/test-app-model.sh

@@ -1,6 +1,6 @@
 import Foundation
 
-public enum ForestPlantKind: CaseIterable {
+public enum ForestPlantKind: CaseIterable, Sendable {
     case sapling, tree, mediumTree, largeTree, pit
 
     public var title: String {
