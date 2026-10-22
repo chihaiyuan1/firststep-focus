@@ -8,6 +8,7 @@ private let forestSage = Color(red: 0.38, green: 0.46, blue: 0.32)
 struct ForestView: View {
     @ObservedObject var model: AppModel
     @State private var date = Date()
+    @State private var scope: FocusStatisticsScope = .day
     @State private var selectedID: String?
     @State private var expanded = false
     @State private var previousToday = Calendar.current.startOfDay(for: Date())
@@ -18,25 +19,37 @@ struct ForestView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("专注记录").font(.system(size: 26, weight: .semibold))
-                Text("每一小段，都长成了风景。").font(.system(size: 13)).foregroundStyle(forestQuiet)
+            HStack(spacing: 16) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("专注记录").font(.system(size: 26, weight: .semibold))
+                    Text("每一小段，都长成了风景。").font(.system(size: 13)).foregroundStyle(forestQuiet)
+                }
+                Spacer(minLength: 0)
+                Picker("统计范围", selection: $scope) {
+                    ForEach(FocusStatisticsScope.allCases, id: \.self) { value in Text(value.title).tag(value) }
+                }.labelsHidden().pickerStyle(.segmented).frame(width: 164).accessibilityLabel("统计范围")
             }.padding(.bottom, 3)
-            HStack(spacing: 12) {
-                statistic("当天完成的番茄钟", value: forest.completedCount, unit: "个", emphasis: true)
-                statistic("当天专注时长", value: forest.focusMinutes, unit: "分钟")
-                statistic("提前结束", value: forest.interruptedCount, unit: "次")
+            if scope == .day {
+                HStack(spacing: 12) {
+                    statistic("当天完成的番茄钟", value: forest.completedCount, unit: "个", emphasis: true)
+                    statistic("当天专注时长", value: forest.focusMinutes, unit: "分钟")
+                    statistic("提前结束", value: forest.interruptedCount, unit: "次")
+                }
+                forestCard
+                legend
+                records
+            } else {
+                FocusPeriodView(records: model.state.history, scope: scope, date: $date, today: today)
             }
-            forestCard
-            legend
-            records
             Text("按专注开始日期归档。完整结束长成树，提前结束留下树坑；临时开放网站的时段不计入专注分钟。日常活动仍可在「时间记录」中手动填写。")
                 .font(.system(size: 11)).foregroundStyle(forestQuiet).lineSpacing(4)
         }
         .foregroundStyle(forestInk)
         .onChange(of: calendar.startOfDay(for: date)) { _ in selectedID = nil; expanded = false }
+        .onChange(of: scope) { _ in selectedID = nil; expanded = false }
         .onChange(of: today) { newToday in
-            if calendar.isDate(date, inSameDayAs: previousToday) { date = newToday }
+            let previous = scope.interval(containing: previousToday, calendar: calendar)
+            if date >= previous.start && date < previous.end { date = newToday }
             previousToday = newToday
         }
     }
