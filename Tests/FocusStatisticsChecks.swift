@@ -60,6 +60,9 @@ private func record(_ id: String, _ start: String, _ seconds: Double, finished: 
         let shortDay=FocusStatisticsScope.day.interval(containing:date("2026-03-08T16:00:00Z"),calendar:cal)
         try check(shortDay.duration==23*3600 && shortDay.end==date("2026-03-09T04:00:00Z"),"Skipped-midnight day must end at next day's actual start")
         try check(FocusStatisticsScope.day.shiftedDate(from:date("2026-03-08T16:00:00Z"),by:1,calendar:cal)==date("2026-03-09T04:00:00Z"),"Navigation from skipped midnight must reset to next start of day")
+        let midnightMonth=FocusStatistics(records:[record("april-monday","2012-04-02T04:30:00Z",900)],on:date("2012-04-01T16:00:00Z"),scope:.month,calendar:cal)
+        try check(midnightMonth.buckets.count==6 && midnightMonth.buckets[0].end==date("2012-04-02T04:00:00Z") && midnightMonth.buckets[1].focusSeconds==900,"Month starting at 01:00 must not carry that hour into Monday buckets")
+        try check(FocusStatisticsScope.month.shiftedDate(from:midnightMonth.interval.start,by:1,calendar:cal)==date("2012-05-01T04:00:00Z"),"Month navigation from a skipped midnight must reset to local day start")
         print("PASS: natural week, clipped monthly weeks, net time/completions, zero days, leap/four/six-week months, midnight/year/DST boundaries and anchored navigation")
     }
 }
