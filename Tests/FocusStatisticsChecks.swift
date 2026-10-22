@@ -50,6 +50,16 @@ private func record(_ id: String, _ start: String, _ seconds: Double, finished: 
         cal.timeZone=TimeZone(identifier:"America/Los_Angeles")!
         let dst=FocusStatistics(records:[record("extra","2026-11-02T07:30:00Z",900)],on:date("2026-11-01T20:00:00Z"),scope:.week,calendar:cal)
         try check(dst.interval.duration==169*3600 && dst.buckets[6].end.timeIntervalSince(dst.buckets[6].start)==25*3600 && dst.completedCount==1,"DST week must retain the full 25-hour Sunday")
+        cal.timeZone=TimeZone(identifier:"America/Havana")!
+        let midnightRecords=[record("monday-first-hour","2026-03-02T05:30:00Z",900),record("next-monday","2026-03-09T04:30:00Z",1500)]
+        let midnight=FocusStatistics(records:midnightRecords,on:date("2026-03-08T16:00:00Z"),scope:.week,calendar:cal)
+        let sameWeek=FocusStatistics(records:midnightRecords,on:date("2026-03-07T17:00:00Z"),scope:.week,calendar:cal)
+        try check(midnight.interval==sameWeek.interval && midnight.interval.start==date("2026-03-02T05:00:00Z") && midnight.interval.end==date("2026-03-09T04:00:00Z"),"A skipped midnight must not shift Monday boundaries based on selected day")
+        try check(midnight.totalFocusSeconds==900 && midnight.completedCount==1,"Skipped-midnight week must include Monday first hour and exclude next Monday")
+        try check(midnight.buckets[6].start==date("2026-03-08T05:00:00Z") && midnight.buckets[6].end==date("2026-03-09T04:00:00Z"),"Skipped-midnight Sunday bucket must stop at next local midnight")
+        let shortDay=FocusStatisticsScope.day.interval(containing:date("2026-03-08T16:00:00Z"),calendar:cal)
+        try check(shortDay.duration==23*3600 && shortDay.end==date("2026-03-09T04:00:00Z"),"Skipped-midnight day must end at next day's actual start")
+        try check(FocusStatisticsScope.day.shiftedDate(from:date("2026-03-08T16:00:00Z"),by:1,calendar:cal)==date("2026-03-09T04:00:00Z"),"Navigation from skipped midnight must reset to next start of day")
         print("PASS: natural week, clipped monthly weeks, net time/completions, zero days, leap/four/six-week months, midnight/year/DST boundaries and anchored navigation")
     }
 }
