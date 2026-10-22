@@ -59,7 +59,7 @@ private func record(_ id: String, start: Double, minutes: Int, net: Double? = ni
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         try JSONEncoder().encode(state).write(to: dir.appendingPathComponent("state.json"))
         let reloaded = try StateStore(directory: dir).transact(now: morning + 902)
-        try check(reloaded.history.count == 501 && reloaded.schema == 3, "Reload must preserve all forest records without a schema change")
+        try check(reloaded.history.count == 501 && reloaded.schema == 4, "Reload must preserve all forest records during the schema upgrade")
 
         for count in [0, 1, 7, 24, 53, 100] {
             let slots = ForestLayout.positions(count: count)

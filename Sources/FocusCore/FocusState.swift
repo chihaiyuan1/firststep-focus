@@ -6,6 +6,8 @@ public struct FocusTask: Codable, Identifiable, Equatable {
     public var nextStep: String
     public var day: String
     public var completed = false
+    public var subtasks: [FocusSubtask]?
+    public var completedAt: Double?
 }
 public struct Allowance: Codable, Equatable {
     public var site: String
@@ -21,6 +23,8 @@ public struct Session: Codable, Identifiable, Equatable {
     public var startAt: Double
     public var endAt: Double
     public var allowances: [Allowance] = []
+    public var subtaskID: String?
+    public var subtaskTitle: String?
 }
 public struct PendingRequest: Codable, Equatable {
     public var id = UUID().uuidString
@@ -39,6 +43,8 @@ public struct FocusRecord: Codable, Identifiable, Equatable {
     public var focusSeconds: Double
     public var finished: Bool
     public var accessCount: Int
+    public var subtaskID: String?
+    public var subtaskTitle: String?
 }
 public struct Command: Codable {
     public var action: String
@@ -50,10 +56,14 @@ public struct Command: Codable {
     public var requestID: String?
     public var reason: String?
     public var protocolVersion: Int?
-    public init(_ action: String, taskID: String? = nil, title: String? = nil, nextStep: String? = nil, minutes: Int? = nil, site: String? = nil, requestID: String? = nil, reason: String? = nil, protocolVersion: Int? = nil) {
+    public var subtaskID: String?
+    public var subtaskTitles: [String]?
+    public var expectedTaskVersion: String?
+    public init(_ action: String, taskID: String? = nil, title: String? = nil, nextStep: String? = nil, minutes: Int? = nil, site: String? = nil, requestID: String? = nil, reason: String? = nil, protocolVersion: Int? = nil, subtaskID: String? = nil, subtaskTitles: [String]? = nil, expectedTaskVersion: String? = nil) {
         self.action = action; self.taskID = taskID; self.title = title; self.nextStep = nextStep
         self.minutes = minutes; self.site = site; self.requestID = requestID; self.reason = reason
         self.protocolVersion = protocolVersion
+        self.subtaskID = subtaskID; self.subtaskTitles = subtaskTitles; self.expectedTaskVersion = expectedTaskVersion
     }
 }
 public struct FocusError: LocalizedError {
@@ -62,7 +72,7 @@ public struct FocusError: LocalizedError {
     public var errorDescription: String? { message }
 }
 public struct FocusState: Codable {
-    public var schema = 3
+    public var schema = 4
     public var tasks: [FocusTask] = []
     public var session: Session?
     public var history: [FocusRecord] = []
@@ -102,7 +112,8 @@ public struct FocusState: Codable {
         var away = 0.0; var right = s.startAt
         for (a, b) in intervals { away += max(0, b - max(right, a)); right = max(right, b) }
         history.insert(FocusRecord(id: s.id, taskID: s.taskID, title: s.title, startAt: s.startAt,
-            endAt: end, focusSeconds: max(0, end - s.startAt - away), finished: finished, accessCount: s.allowances.count), at: 0)
+            endAt: end, focusSeconds: max(0, end - s.startAt - away), finished: finished, accessCount: s.allowances.count,
+            subtaskID: s.subtaskID, subtaskTitle: s.subtaskTitle), at: 0)
         session = nil; pending = nil
     }
     public mutating func apply(_ c: Command, now: Double) throws {
@@ -117,6 +128,7 @@ public struct FocusState: Codable {
         }
         switch c.action {
         case "getState": break
+        case "appendSubtasks", "editSubtask", "deleteSubtask", "completeSubtask": try applySubtasks(c, now: now)
         case "addInbox", "editInbox", "deleteInbox", "restoreInbox", "moveInboxToday": try applyInbox(c, now: now)
         case "heartbeat": lastExtensionSeen = now; extensionError = c.reason?.isEmpty == false ? c.reason : nil; extensionProtocol = c.protocolVersion
         case "addBlockedSite", "removeBlockedSite":
@@ -143,17 +155,21 @@ public struct FocusState: Codable {
             if c.action == "editTask" {
                 let title = text(c.title); guard !title.isEmpty else { throw FocusError("任务名称不能为空") }
                 tasks[i].title = title; tasks[i].nextStep = text(c.nextStep, maxLength: 180)
-            } else if c.action == "completeTask" { tasks[i].completed.toggle() }
-            else if c.action == "moveToday" { tasks[i].day = Self.day(at: now); tasks[i].completed = false }
+            } else if c.action == "completeTask" { tasks[i].completed.toggle(); tasks[i].completedAt = tasks[i].completed ? now : nil }
+            else if c.action == "moveToday" { tasks[i].day = Self.day(at: now); tasks[i].completed = false; tasks[i].completedAt = nil }
             else { tasks.remove(at: i) }
         case "start":
             guard session == nil else { throw FocusError("先完成当前这一轮") }
             let i = try index()
             guard !tasks[i].completed else { throw FocusError("这件事已经完成了") }
             guard let minutes = c.minutes, [15,25,30,45].contains(minutes) else { throw FocusError("请选择 15、25、30 或 45 分钟") }
+            let subtask = tasks[i].steps.first(where: { $0.id == c.subtaskID })
+            if c.subtaskID != nil || !tasks[i].steps.isEmpty {
+                guard let subtask, !subtask.completed else { throw FocusError("请先选中一个未完成的小任务") }
+            }
             tasks[i].day = Self.day(at: now)
             session = Session(taskID: tasks[i].id, title: tasks[i].title, nextStep: tasks[i].nextStep,
-                              startAt: now, endAt: now + Double(minutes * 60))
+                              startAt: now, endAt: now + Double(minutes * 60), subtaskID: subtask?.id, subtaskTitle: subtask?.title)
             breakUntil = nil; pending = nil
         case "requestAccess", "requestEnd":
             guard let s = session else { throw FocusError("当前没有正在进行的专注") }

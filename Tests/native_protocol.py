@@ -22,7 +22,7 @@ with tempfile.TemporaryDirectory() as temp:
             response=json.loads(read_exact(size));assert response['id']=='test';return response
         first=request({'action':'getState'},True)
         assert first['ok'] and first['state']['tasks']==[]
-        assert first['state']['schema']==3
+        assert first['state']['schema']==4
         assert not request({'action':'addTask','title':'禁止从扩展写入'})['ok']
         assert not request({'action':'addBlockedSite','site':'example.com'})['ok']
         assert not request({'action':'addInbox','title':'禁止从扩展写入收集箱'})['ok']
