@@ -25,6 +25,17 @@ import FocusCore
         guard model.state.activeInboxItems.isEmpty, model.lastDeletedInboxID == deletedID else { throw FocusError("Delete failed") }
         model.undoInboxDeletion()
         guard model.state.activeInboxItems.first?.id == deletedID, model.lastDeletedInboxID == nil else { throw FocusError("Undo failed") }
+        guard model.send(Command("appendSubtasks", taskID: inboxID, subtaskTitles: ["先收集三份材料", "检查材料缺口"])),
+              let child = model.state.tasks.first(where: {$0.id == inboxID})?.steps.last else { throw FocusError("Subtasks missing") }
+        model.selectTask(inboxID, subtaskID: child.id)
+        guard model.canStart && model.state.session == nil && model.selectedSubtask == child.id else { throw FocusError("Selection must not start") }
+        model.start()
+        guard model.state.session?.subtaskID == child.id else { throw FocusError("Start must target selected subtask") }
+        let finishAt = model.state.session!.endAt + 1
+        _ = try store.transact(now: finishAt); model.refresh()
+        model.completeFocusedTask()
+        let parent = model.state.tasks.first(where: {$0.id == inboxID})!
+        guard !parent.completed && parent.steps.last?.completed == true && parent.steps.first?.completed == false else { throw FocusError("Completion card must mark only focused subtask") }
         print("PASS: AppModel completion notifications, inbox-to-Today selection without auto-start, delete and undo")
     }
 }

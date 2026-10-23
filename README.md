@@ -2,7 +2,7 @@
 
 <p align="center"><img src="assets/AppIcon.png" width="128" alt="先做一刻图标"></p>
 
-本地运行的 macOS 专注工具：任务收集箱、悬浮番茄钟、每日专注森林与周月统计、Chrome 分心网站屏蔽，以及每天 07:00–20:00 的手动时间记录。MIT 开源。
+本地运行的 macOS 专注工具：任务收集箱、悬浮番茄钟、每日专注森林与周月统计、Chrome 分心网站屏蔽，每天 07:00–20:00 的手动时间记录，以及可选的 AI 任务拆解与每日复盘。MIT 开源。
 
 Mac 自用的轻量专注工具：写下今天的核心任务，选 15 / 25 / 30 / 45 分钟开始。右上角悬浮小窗显示当前任务与倒计时；Chrome 扩展暂时屏蔽你设置的网站，初始包含雪球、X、微博。
 
@@ -17,7 +17,7 @@ python3 --version
 
 如果已安装 Command Line Tools，可跳过第一条。
 
-升级前先结束专注并退出旧应用。安装程序会更新本地主机并让已连接的扩展自动重连，保留已有记录。应用 0.6.0 继续使用扩展 0.2.0，无需再次授权网站权限。
+升级前先结束专注并退出旧应用。安装程序会更新本地主机并让已连接的扩展自动重连，保留已有记录。应用 0.7.0 继续使用扩展 0.2.0，无需再次授权网站权限。
 
 1. 双击本目录的 `安装.command`。应用安装到 `~/Applications/先做一刻.app`，随后自动打开。
 2. 按 [安装说明](安装说明.md) 在自己的 Chrome 中加载本地扩展。已安装并连接的用户可以跳过。
@@ -37,7 +37,7 @@ Chrome 中打开 `chrome://extensions` → 开启「开发者模式」→「加�
 - 临时访问：点击临时访问 → 可选填写原因 → 开始等待 30 秒 → 再次确认后，单站开放 5 分钟。不会自动放行。
 - 提前结束和正常退出：先等待 30 秒，再确认。关闭主窗口不会结束计时。
 - 浮窗可以拖动；菜单栏的倒计时可以重新打开主窗口。不会强制自动开始下一轮。
-- 记录只保存在本机。临时放行时段从记录的专注时间中扣除；这表示可用时段，不监视你是否实际浏览。
+- 计时记录保存在本机；只有手动发起 AI 对话时才发送本次所需内容。临时放行时段从记录的专注时间中扣除；这表示可用时段，不监视你是否实际浏览。
 - 主动停用扩展仍能绕过。扩展断连时按已知截止时间解除；电脑休眠期间不会唤醒电脑，恢复后重新核对时间。
 
 ## 收集箱
@@ -89,9 +89,21 @@ Chrome 中打开 `chrome://extensions` → 开启「开发者模式」→「加�
 - 指向或点击柱子，查看对应日期的时长和完成数量。用前后箭头、日期控件和「本周／本月」回看历史或返回当前。
 - 时长沿用实际专注秒数，包含提前结束前的投入，扣除临时访问时段；完成数量只计算完整结束的轮次。按开始日期归档，旧记录自动统计，无需迁移。
 
+## AI 助手与小任务
+
+0.7.0 新增左侧「AI 助手」，通过官方 Continue with ChatGPT 登录授权，使用账号允许共享的套餐额度，无需 API Key。可用模型由官方接口返回；套餐额度与其他接入应用共享，遇到限额时应用会提示。也可以不连接，所有原有功能和手动小任务照常使用。
+
+- **任务拆解**：在 AI 页面选任务，或在任务菜单中点「AI 帮我拆解」。先回答 1–2 轮问题，再生成按 SMART 原则检查的建议。可以修改、移除草案，点击「采用这些小任务」后追加到原主任务，保留已有小任务；主任务已变化时不会强行覆盖。
+- **选小任务专注**：在「今天的事」点击小任务文字选中，再选时长并开始。勾选框表示事情完成；番茄钟结束只记一轮，不会自动完成小任务或主任务。悬浮窗显示小任务，历史保留当时的主任务和小任务名称。
+- **每日复盘**：手动选日期、查看将使用的记录，可以补充成果或困难。先问答，再生成事实、观察和可尝试的调整；同一天多次复盘都会保留。任务当前完成状态不等于当天完成，缺少完成时间的旧数据不会被当作当日产出。
+- **发送范围**：拆解只发送所选任务、已有小任务和本次回答；复盘只发送所选日期相关的任务、专注记录、手动时间记录及备注、补充和回答。不会发送整个收集箱，不会读取网页正文。手动记录和番茄钟可能重叠，不相加。
+- **保存与退出**：完整建议及对话保存在本机 `ai-journal.json`，账号与模型偏好在 `ai-preferences.json`；授权文件位于 `AI/`（目录 0700、文件 0600）。退出会尝试撤销刷新凭证并清除本机令牌，保留注册信息，任务和复盘不删除。网络中断、取消或不完整回答不会加入任务。
+
+官方接入说明（核查日期 2026-10-23）：[Sign in with ChatGPT](https://developers.openai.com/siwc/token-sharing-open-source/sign-in)、[模型与调用](https://developers.openai.com/siwc/token-sharing-open-source/models-and-inference)、[预览限制](https://developers.openai.com/siwc/token-sharing-open-source/preview-limitations)。这是官方支持的套餐共享接入，账户是否可用及额度以授权页和应用实际返回为准。
+
 ## 数据和卸载
 
-专注任务与记录：`~/Library/Application Support/FirstStep/state.json`；手动时间记录：同目录下的 `time-records.json`。退出应用后可复制此目录备份。不要在专注进行中手动修改数据。
+专注任务与记录：`~/Library/Application Support/FirstStep/state.json`；手动时间记录：同目录下的 `time-records.json`。退出应用后可复制此目录备份；其中 `AI/` 含登录凭证，备份应妥善保管，不要上传公开仓库。不要在专注进行中手动修改数据。
 
 卸载：先结束专注；在 Chrome 删除「先做一刻 · 专注守护」扩展；退出并移除 `~/Applications/先做一刻.app`。本地主机配置位于 `~/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.dayuan.firststep.json`，可移除。个人记录默认保留在 FirstStep 目录，是否删除由你决定。
 
@@ -101,6 +113,9 @@ Chrome 中打开 `chrome://extensions` → 开启「开发者模式」→「加�
 
 ```sh
 ./scripts/test-core.sh
+./scripts/test-subtasks.sh
+./scripts/test-ai-journal.sh
+./scripts/test-chatgpt.sh
 ./scripts/test-daily-forest.sh
 ./scripts/test-statistics.sh
 ./scripts/test-inbox.sh
@@ -116,7 +131,7 @@ python3 Tests/native_protocol.py
 
 应用使用本地 ad-hoc 签名，仅供本机使用，没有 Apple 公证。测试结果及实机验证范围见 `docs/verification.md`。
 
-实现：SwiftUI / AppKit + Chrome Manifest V3 + Native Messaging。Swift 状态机负责等待和放行；文件锁与原子写入避免多进程覆盖。扩展通过 Chrome DNR 匹配配置的域名，不读取网页正文；不修改系统 hosts 文件。状态文件升级为 schema 3，兼容迁移 1/2，旧版主机拒绝写入。收集箱到今天的转移使用同一次事务，收集箱内容不发送给 Chrome；时间记录文件格式不变。
+实现：SwiftUI / AppKit + Chrome Manifest V3 + Native Messaging。Swift 状态机负责等待和放行；文件锁与原子写入避免多进程覆盖。扩展通过 Chrome DNR 匹配配置的域名，不读取网页正文；不修改系统 hosts 文件。状态文件升级为 schema 4，兼容迁移 1/2/3，旧版主机拒绝写入。收集箱到今天的转移使用同一次事务，收集箱内容不发送给 Chrome；时间记录文件格式不变。
 
 接口依据（核查日期 2026-10-16）：[Chrome DNR](https://developer.chrome.com/docs/extensions/reference/api/declarativeNetRequest)、[Native Messaging](https://developer.chrome.com/docs/extensions/develop/concepts/native-messaging)。
 

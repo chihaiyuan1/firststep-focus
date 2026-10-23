@@ -31,8 +31,8 @@ struct ForestScene: View {
                     .buttonStyle(.plain)
                     .position(x: geometry.size.width * slot.x,
                               y: geometry.size.height * slot.y - (pit ? 0 : height / 2 - 12 * factor))
-                    .accessibilityLabel("\(item.kind.title)，\(item.record.title)，专注 \(Int(item.record.focusSeconds / 60)) 分钟")
-                    .help("\(item.record.title) · \(item.kind.title)")
+                    .accessibilityLabel("\(item.kind.title)，\(item.record.displayTitle)，专注 \(Int(item.record.focusSeconds / 60)) 分钟")
+                    .help("\(item.record.displayTitle) · \(item.kind.title)")
                 }
                 if items.isEmpty {
                     Text("这一片土地，等你下一次专注。")

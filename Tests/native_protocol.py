@@ -26,10 +26,14 @@ with tempfile.TemporaryDirectory() as temp:
         assert not request({'action':'addTask','title':'禁止从扩展写入'})['ok']
         assert not request({'action':'addBlockedSite','site':'example.com'})['ok']
         assert not request({'action':'addInbox','title':'禁止从扩展写入收集箱'})['ok']
+        assert not request({'action':'appendSubtasks','taskID':'task','subtaskTitles':['禁止从扩展添加']})['ok']
         now=time.time();s=first['state'];s['session']={'id':'focus','taskID':'task','title':'协议测试','nextStep':'一步','startAt':now,'endAt':now+900,'allowances':[]}
+        s['tasks']=[{'id':'task','title':'协议测试','nextStep':'一步','day':time.strftime('%Y-%m-%d'),'completed':False,'createdAt':now,'subtasks':[{'id':'step','title':'仅本机小任务','completed':False}]}]
         s['inboxItems']=[{'id':'inbox-test','title':'本机暂存标题','createdAt':now}]
         file=Path(temp)/'state.json';file.write_text(json.dumps(s))
         r=request({'action':'requestAccess','site':'x.com'});assert r['ok']
+        assert 'subtasks' not in r['state']['tasks'][0]
+        assert json.loads(file.read_text())['tasks'][0]['subtasks'][0]['id']=='step'
         req=r['state']['pending'];assert req['readyAt']>=now+30
         assert not request({'action':'confirmAccess','requestID':req['id']})['ok']
         s=json.loads(file.read_text());s['pending']['readyAt']=time.time()-1;file.write_text(json.dumps(s))

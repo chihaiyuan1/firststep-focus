@@ -14,3 +14,9 @@ time-records.json
 docs/progress.md
 docs/superpowers/
 design/icon-options/
+
+# Private AI runtime data
+ai-journal.json
+ai-preferences.json
+AI/
+account-*.json

@@ -7,6 +7,7 @@ let package = Package(
     products: [.executable(name: "FirstStep", targets: ["FocusApp"])],
     targets: [
         .target(name: "FocusCore"),
-        .executableTarget(name: "FocusApp", dependencies: ["FocusCore"])
+        .target(name: "FocusAI"),
+        .executableTarget(name: "FocusApp", dependencies: ["FocusCore", "FocusAI"])
     ]
 )

@@ -17,7 +17,7 @@ python3 - <<'PY'
 import plistlib
 from pathlib import Path
 p=Path('dist/先做一刻.app/Contents/Info.plist')
-p.write_bytes(plistlib.dumps({'CFBundleName':'先做一刻','CFBundleDisplayName':'先做一刻','CFBundleIdentifier':'com.dayuan.firststep','CFBundleExecutable':'FirstStep','CFBundlePackageType':'APPL','CFBundleShortVersionString':'0.6.0','CFBundleVersion':'8','LSMinimumSystemVersion':'13.0','NSHighResolutionCapable':True,'CFBundleIconFile':'AppIcon','NSHumanReadableCopyright':'Personal local focus tool'}))
+p.write_bytes(plistlib.dumps({'CFBundleName':'先做一刻','CFBundleDisplayName':'先做一刻','CFBundleIdentifier':'com.dayuan.firststep','CFBundleExecutable':'FirstStep','CFBundlePackageType':'APPL','CFBundleShortVersionString':'0.7.0','CFBundleVersion':'9','LSMinimumSystemVersion':'13.0','NSHighResolutionCapable':True,'CFBundleIconFile':'AppIcon','NSHumanReadableCopyright':'Personal local focus tool'}))
 PY
 codesign --force --deep --sign - "$APP"
 rm -rf dist/AppIcon.iconset

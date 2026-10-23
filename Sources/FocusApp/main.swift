@@ -42,7 +42,7 @@ final class FocusPanel: NSPanel {
     func refreshWindows() {
         let active = model.state.session != nil || model.state.breakUntil != nil
         status.button?.title = active ? "◒ \(clockText(model.remaining))" : "◒"
-        status.button?.toolTip = model.state.session?.title ?? "先做一刻"
+        status.button?.toolTip = model.state.session?.displayTitle ?? "先做一刻"
         if active && !wasActive { positionPanel(); panel.orderFrontRegardless() }
         if !active && wasActive { panel.orderOut(nil); if model.completion != nil { showMain() } }
         wasActive = active

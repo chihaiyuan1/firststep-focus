@@ -125,7 +125,7 @@ struct ForestView: View {
             ForestPlant(kind: selected?.kind ?? .tree).frame(width: 28, height: 32)
                 .padding(5).background(forestSage.opacity(0.07), in: RoundedRectangle(cornerRadius: 10))
             VStack(alignment: .leading, spacing: 5) {
-                Text(selected?.record.title ?? (forest.records.isEmpty ? "给这一天，留下一点生长" : "\(forest.completedCount) 轮专注，长成这一天的小森林"))
+                Text(selected?.record.displayTitle ?? (forest.records.isEmpty ? "给这一天，留下一点生长" : "\(forest.completedCount) 轮专注，长成这一天的小森林"))
                     .font(.system(size: 12, weight: .medium)).lineLimit(2)
                 if let item = selected {
                     Text("\(timeRange(item.record)) · 实际专注 \(Int(item.record.focusSeconds / 60)) 分钟 · 临时访问 \(item.record.accessCount) 次")
@@ -191,7 +191,7 @@ struct ForestView: View {
                 ForestPlant(kind: item.kind).frame(width: 25, height: 32)
                     .padding(5).background(forestSage.opacity(0.06), in: RoundedRectangle(cornerRadius: 9))
                 VStack(alignment: .leading, spacing: 5) {
-                    Text(item.record.title).font(.system(size: 12, weight: .medium)).lineLimit(2)
+                    Text(item.record.displayTitle).font(.system(size: 12, weight: .medium)).lineLimit(2)
                     Text("\(timeRange(item.record)) · \(item.record.finished ? "完整完成" : "提前结束") · 临时访问 \(item.record.accessCount) 次")
                         .font(.system(size: 10)).foregroundStyle(forestQuiet)
                 }.frame(maxWidth: .infinity, alignment: .leading)
@@ -202,7 +202,7 @@ struct ForestView: View {
             }.padding(.horizontal, 15).padding(.vertical, 13)
                 .background(selectedID == item.id ? forestSage.opacity(0.06) : .clear)
                 .contentShape(Rectangle())
-        }.buttonStyle(.plain).accessibilityLabel("\(item.record.title)，\(item.record.finished ? "完整完成" : "提前结束")，专注 \(Int(item.record.focusSeconds / 60)) 分钟，查看\(item.kind.title)")
+        }.buttonStyle(.plain).accessibilityLabel("\(item.record.displayTitle)，\(item.record.finished ? "完整完成" : "提前结束")，专注 \(Int(item.record.focusSeconds / 60)) 分钟，查看\(item.kind.title)")
     }
     private func moveDay(_ delta: Int) {
         if let next = calendar.date(byAdding: .day, value: delta, to: date) { date = next }

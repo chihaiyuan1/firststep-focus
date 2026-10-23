@@ -17,6 +17,8 @@ struct SoftButton: ButtonStyle {
 }
 struct MainView: View {
     @ObservedObject var model: AppModel
+    @StateObject private var assistant: AIModel
+    init(model: AppModel) { self.model=model; _assistant=StateObject(wrappedValue:AIModel(directory:model.store.directory)) }
     @State private var editor = false
     @State private var editing: FocusTask?
     @State private var deleteTask: FocusTask?
@@ -30,6 +32,7 @@ struct MainView: View {
                 nav("time", "时间记录", "calendar")
                 nav("history", "专注记录", "clock")
                 nav("sites", "屏蔽网站", "hand.raised")
+                nav("ai", "AI 助手", "sparkles")
                 Spacer()
                 VStack(alignment: .leading, spacing: 10) {
                     Text("今天已专注").font(.system(size: 11)).foregroundStyle(quiet)
@@ -44,7 +47,8 @@ struct MainView: View {
             } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 24) {
-                        if model.page == "inbox" { InboxView(model: model) }
+                        if model.page == "ai" { AIView(model: model, assistant: assistant) }
+                        else if model.page == "inbox" { InboxView(model: model) }
                         else if model.page == "sites" { BlockedSitesView(model: model) }
                         else if model.page == "history" { ForestView(model: model) }
                         else { today }
@@ -73,8 +77,8 @@ struct MainView: View {
             if let s = model.state.session {
                 VStack(alignment: .leading, spacing: 14) {
                     HStack { Label("正在专注", systemImage: "circle.lefthalf.filled").font(.system(size: 12)).foregroundStyle(sage); Spacer(); Button("显示悬浮窗") { model.toggleFloat?() }.buttonStyle(.plain).font(.system(size: 12)) }
-                    Text(s.title).font(.system(size: 21, weight: .medium))
-                    if !s.nextStep.isEmpty { Text("下一步：\(s.nextStep)").font(.system(size: 13)).foregroundStyle(quiet) }
+                    Text(s.displayTitle).font(.system(size: 21, weight: .medium))
+                    if s.subtaskTitle != nil || !s.nextStep.isEmpty { Text(s.subtaskTitle != nil ? s.title : "下一步：\(s.nextStep)").font(.system(size: 13)).foregroundStyle(quiet) }
                     HStack(alignment: .bottom) {
                         Text(clockText(model.remaining)).font(.system(size: 62, weight: .light, design: .rounded)).monospacedDigit()
                         Spacer(); Button("提前结束") { model.requestEnd() }.buttonStyle(SoftButton())
@@ -88,11 +92,11 @@ struct MainView: View {
                 if let record = model.completion {
                     VStack(alignment: .leading, spacing: 10) {
                         Label(record.finished ? "这一轮完成了" : "这一轮已结束", systemImage: "checkmark.circle.fill").foregroundStyle(sage)
-                        Text(record.title).font(.system(size: 14))
+                        Text(record.displayTitle).font(.system(size: 14))
                         HStack {
-                            Button("任务完成") { _ = model.send(Command("completeTask", taskID: record.taskID)); model.completion = nil }.buttonStyle(SoftButton())
+                            Button(record.subtaskID == nil ? "任务完成" : "小任务完成") { model.completeFocusedTask() }.buttonStyle(SoftButton())
                             Button("休息 5 分钟") { model.completion = nil; _ = model.send(Command("startBreak")) }.buttonStyle(SoftButton())
-                            Button("继续做") { model.selectedTask = record.taskID; model.completion = nil }.buttonStyle(.plain)
+                            Button("继续做") { model.selectTask(record.taskID, subtaskID: record.subtaskID); model.completion = nil }.buttonStyle(.plain)
                         }
                     }.padding(18).frame(maxWidth: .infinity, alignment: .leading).background(sage.opacity(0.08), in: RoundedRectangle(cornerRadius: 14))
                 }
@@ -103,7 +107,7 @@ struct MainView: View {
                             Button { model.minutes = value } label: { Text("\(value) 分钟").font(.system(size: 13, weight: .medium)).frame(maxWidth: .infinity).padding(.vertical, 12).background(model.minutes == value ? sage.opacity(0.14) : .white.opacity(0.8), in: RoundedRectangle(cornerRadius: 10)).overlay(RoundedRectangle(cornerRadius: 10).stroke(model.minutes == value ? sage.opacity(0.6) : .clear)) }.buttonStyle(.plain)
                         }
                     }
-                    Button { model.start() } label: { HStack { Image(systemName: "play.fill"); Text("开始 \(model.minutes) 分钟"); Spacer(); Image(systemName: "arrow.right") }.frame(maxWidth: .infinity) }.buttonStyle(SoftButton(primary: true)).disabled(model.selectedTask == nil).opacity(model.selectedTask == nil ? 0.5 : 1)
+                    Button { model.start() } label: { HStack { Image(systemName: "play.fill"); Text("开始 \(model.minutes) 分钟"); Spacer(); Image(systemName: "arrow.right") }.frame(maxWidth: .infinity) }.buttonStyle(SoftButton(primary: true)).disabled(!model.canStart).opacity(model.canStart ? 1 : 0.5)
                     connectionHint
                 }
             }
@@ -120,17 +124,7 @@ struct MainView: View {
         HStack(alignment: .top, spacing: 7) { Image(systemName: model.extensionConnected ? "checkmark.shield" : "exclamationmark.circle"); Text(model.extensionConnected ? (model.blockedSites.isEmpty ? "屏蔽列表为空，本轮仅计时。" : "专注期间屏蔽列表中的 \(model.blockedSites.count) 组网站。") : model.extensionConnectionHint) }.font(.system(size: 11)).foregroundStyle(model.extensionConnected ? sage : Color(red: 0.60, green: 0.43, blue: 0.25))
     }
     private func taskRow(_ task: FocusTask) -> some View {
-        HStack(spacing: 12) {
-            Button { if !task.completed && model.state.session == nil { model.selectedTask = task.id } } label: { Image(systemName: task.completed ? "checkmark.circle.fill" : (model.selectedTask == task.id ? "largecircle.fill.circle" : "circle")).font(.system(size: 20)).foregroundStyle(task.completed ? quiet : sage) }.buttonStyle(.plain).accessibilityLabel("选择任务 \(task.title)")
-            VStack(alignment: .leading, spacing: 5) { Text(task.title).font(.system(size: 14, weight: .medium)).strikethrough(task.completed).foregroundStyle(task.completed ? quiet : ink); if !task.nextStep.isEmpty { Text(task.nextStep).font(.system(size: 12)).foregroundStyle(quiet).lineLimit(2) }; if task.day != FocusCore.FocusState.day(at: model.now) { Text("之前未完成，继续也可以").font(.system(size: 10)).foregroundStyle(quiet) } }
-            Spacer()
-            Menu {
-                Button(task.completed ? "恢复为未完成" : "标记完成") { _ = model.send(Command("completeTask", taskID: task.id)) }
-                Button("修改任务") { editing = task; editor = true }
-                Button("移到今天") { _ = model.send(Command("moveToday", taskID: task.id)) }
-                Divider(); Button("删除任务", role: .destructive) { deleteTask = task }
-            } label: { Image(systemName: "ellipsis").frame(width: 20) }.menuStyle(.borderlessButton).frame(width: 24).disabled(model.state.session?.taskID == task.id)
-        }.padding(16).background(.white.opacity(model.selectedTask == task.id ? 0.95 : 0.5), in: RoundedRectangle(cornerRadius: 12))
+        TaskCard(model:model,task:task,onEdit:{editing=task;editor=true},onDelete:{deleteTask=task})
     }
     private var endSheet: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -165,7 +159,7 @@ struct FloatingView: View {
         VStack(alignment: .leading, spacing: 9) {
             HStack { Image(systemName: "circle.lefthalf.filled").foregroundStyle(sage); Text(model.state.session != nil ? "先做这一件" : (model.state.breakUntil != nil ? "休息一下" : "这一轮完成了")).font(.system(size: 11)).foregroundStyle(quiet); Spacer(); Button { model.showMain?() } label: { Image(systemName: "arrow.up.left.and.arrow.down.right").font(.system(size: 11)) }.buttonStyle(.plain).help("打开主窗口") }
             HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 6) { Text(model.state.session?.title ?? "给自己一点空白").font(.system(size: 13, weight: .medium)).lineLimit(2); if let step = model.state.session?.nextStep, !step.isEmpty { Text(step).font(.system(size: 10)).foregroundStyle(quiet).lineLimit(2) } }
+                VStack(alignment: .leading, spacing: 6) { Text(model.state.session?.displayTitle ?? "给自己一点空白").font(.system(size: 13, weight: .medium)).lineLimit(2); if let session = model.state.session, !session.nextStep.isEmpty || session.subtaskTitle != nil { Text(session.subtaskTitle != nil ? session.title : session.nextStep).font(.system(size: 10)).foregroundStyle(quiet).lineLimit(2) } }
                 Spacer(minLength: 10)
                 Text(clockText(model.remaining)).font(.system(size: 32, weight: .light, design: .rounded)).monospacedDigit()
             }

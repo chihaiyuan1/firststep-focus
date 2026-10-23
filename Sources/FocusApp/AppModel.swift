@@ -6,6 +6,8 @@ import FocusCore
     @Published var state = FocusCore.FocusState()
     @Published var now = Date().timeIntervalSince1970
     @Published var selectedTask: String?
+    @Published var selectedSubtask: String?
+    @Published var aiTaskID: String?
     @Published var minutes = 15
     @Published var page = "today"
     @Published var error: String?
@@ -51,6 +53,24 @@ import FocusCore
         return "Chrome 未连接，目前仅计时，不会屏蔽网站。请检查扩展是否启用，首次安装见「安装说明.md」。"
     }
     var remaining: Double { max(0, (state.session?.endAt ?? state.breakUntil ?? now) - now) }
+    var canStart: Bool {
+        guard let task = state.tasks.first(where: {$0.id == selectedTask && !$0.completed}) else { return false }
+        return task.steps.isEmpty || task.steps.contains(where: {$0.id == selectedSubtask && !$0.completed})
+    }
+    func selectTask(_ id: String, subtaskID: String? = nil) {
+        guard state.session == nil else { return }
+        selectedTask = id
+        let steps = state.tasks.first(where: {$0.id == id})?.steps ?? []
+        selectedSubtask = steps.first(where: {$0.id == subtaskID && !$0.completed})?.id ?? steps.first(where: {!$0.completed})?.id
+    }
+    func openAI(taskID: String? = nil) { aiTaskID = taskID; page = "ai" }
+    func completeFocusedTask() {
+        guard let record=completion, let task=state.tasks.first(where:{$0.id==record.taskID}) else { completion=nil; return }
+        if let stepID=record.subtaskID {
+            if task.steps.first(where:{$0.id==stepID})?.completed == false { _=send(Command("completeSubtask",taskID:task.id,subtaskID:stepID)) }
+        } else if !task.completed { _=send(Command("completeTask",taskID:task.id)) }
+        completion=nil
+    }
     var todayTasks: [FocusTask] { state.tasks.filter { !$0.completed || $0.day == FocusCore.FocusState.day(at: now) } }
     var todayRecords: [FocusRecord] { state.history.filter { FocusCore.FocusState.day(at: $0.startAt) == FocusCore.FocusState.day(at: now) } }
     var todayMinutes: Int { Int(todayRecords.reduce(0) { $0 + $1.focusSeconds } / 60) }
@@ -59,6 +79,8 @@ import FocusCore
         do {
             accept(try store.transact(now: now))
             if !state.tasks.contains(where: { $0.id == selectedTask && !$0.completed }) { selectedTask = state.tasks.first(where: { !$0.completed })?.id }
+            let steps=state.tasks.first(where:{$0.id == selectedTask})?.steps ?? []
+            if !steps.contains(where:{$0.id == selectedSubtask && !$0.completed}) { selectedSubtask=steps.first(where:{!$0.completed})?.id }
             refreshTimeLog(); onRefresh?()
         } catch { self.error = error.localizedDescription }
     }
@@ -95,7 +117,7 @@ import FocusCore
         do { accept(try store.transact(command: command)); now = Date().timeIntervalSince1970; error = nil; refresh(); return true }
         catch { self.error = error.localizedDescription; return false }
     }
-    func start() { guard let id = selectedTask else { return }; completion = nil; _ = send(Command("start", taskID: id, minutes: minutes)) }
+    func start() { guard let id = selectedTask, canStart else { return }; completion = nil; _ = send(Command("start", taskID: id, minutes: minutes, subtaskID: selectedSubtask)) }
     func requestEnd(quit: Bool = false) { wantsQuit = quit; showMain?(); _ = send(Command("requestEnd")) }
     func confirmEnd() {
         if send(Command("confirmEnd", requestID: state.pending?.id)), wantsQuit { NSApp.terminate(nil) }
