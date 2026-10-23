@@ -77,6 +77,36 @@ private func writeDocument(_ object: [String: Any], to url: URL) throws {
         check(active["id"] as? String == "active" && active["subtaskTitle"] as? String == "当前小任务", "active session is disclosed independently")
         let tomorrow = try ChatDayContext.capture(state: state, entries: logs, now: date("2026-10-24", 1))
         check(tomorrow.day == "2026-10-24" && tomorrow.focusCount == 0 && tomorrow.timeEntryCount == 0 && tomorrow.taskCount == 2, "a new capture after midnight uses the new day and retains old open tasks")
+        // Mutations caught: previewing a freshly filtered state instead of the captured
+        // payload, omitting newly completed subtasks, or formatting with today's timezone.
+        var previewState = state
+        previewState.tasks.append(FocusTask(id: "old-finished-parent-identifier", title: "已完成旧主任务", nextStep: "旧主任务的下一步", day: yesterday, completed: true,
+            subtasks: [FocusSubtask(id: "recent-step-identifier", title: "今天才完成的小任务", completed: true, completedAt: midnight + 30)], completedAt: midnight - 100))
+        previewState.history[1].subtaskTitle = "净专注的小标题"
+        let previewContext = try ChatDayContext.capture(state: previewState, entries: logs, now: now)
+        let previewLines = previewContext.previewLines
+        let preview = previewLines.joined(separator: "\n")
+        check(preview.contains("已完成旧主任务") && preview.contains("今天才完成的小任务") && preview.contains("旧主任务的下一步"), "preview includes old completed parent when its subtask was completed today")
+        check(preview.contains("当前状态：已完成") && preview.contains("当前状态：未完成") && preview.contains("完成日期：2026-10-22") && preview.contains("完成日期：2026-10-23"), "preview explains current task and subtask state and completion day")
+        check(preview.contains("09:00–10:00") && preview.contains("需要核对的备注") && preview.contains("重叠日志二"), "manual preview retains wall-clock interval and notes")
+        check(preview.contains("净专注 33.3 分钟") && preview.contains("完整 1 次") && preview.contains("提前结束 1 次"), "preview reports only net completed-record summary with separate round counts")
+        check(preview.contains("今日净专注 · 净专注的小标题") && preview.contains("净专注 25 分钟") && preview.contains("临时访问 2 次") && preview.contains("2026-10-23 09:00") && preview.contains("2026-10-23 10:00"), "focus preview shows task and subtask, local interval, net minutes and access count")
+        check(previewLines.contains { $0.contains("运行中的任务 · 当前小任务") && $0.contains("快照当时进行中") && $0.contains("不计入汇总") }, "active session preview is a separate row marked active at capture and excluded from totals")
+        check(!preview.contains("不发送") && !preview.contains("secret-blocked") && !preview.contains("old-finished-parent-identifier") && !preview.contains("recent-step-identifier") && !preview.contains("today-focus"), "readable preview excludes inbox, old/deleted logs and internal identifiers")
+        previewState.tasks.removeAll(); previewState.history.removeAll(); previewState.session = nil
+        _ = try ChatDayContext.capture(state: previewState, entries: [], now: date("2026-10-24", 1))
+        let restoredPreview = try JSONDecoder().decode(ChatDayContext.self, from: JSONEncoder().encode(previewContext))
+        check(restoredPreview.previewLines == previewLines, "saved context preview retains the original content after business state changes")
+        var fixedZoneContext = previewContext; fixedZoneContext.timezone = "Pacific/Honolulu"
+        let fixedInstant = Date(timeIntervalSince1970: 0)
+        var fixedSnapshot = try object(fixedZoneContext.text)
+        fixedSnapshot["focusRecords"] = [["id": "fixed-zone-id", "title": "固定时区专注", "startAt": fixedInstant.timeIntervalSince1970, "endAt": 1800, "focusSeconds": 1500, "finished": true, "temporaryAccessCount": 0]]
+        fixedSnapshot["activeSession"] = ["id": "fixed-active-id", "title": "固定时区会话", "startAt": 0, "plannedEndAt": 1800]
+        fixedZoneContext.text = String(data: try JSONSerialization.data(withJSONObject: fixedSnapshot), encoding: .utf8)!
+        let zonedPreview = fixedZoneContext.previewLines.joined(separator: "\n")
+        check(zonedPreview.contains("1969-12-31 14:00") && zonedPreview.contains("1969-12-31 14:30") && !zonedPreview.contains("fixed-zone-id") && !zonedPreview.contains("fixed-active-id"), "saved timezone controls both focus and active timestamps instead of the current timezone")
+        var malformedPreview = context; malformedPreview.text = "{broken"
+        check(!malformedPreview.previewLines.isEmpty && !malformedPreview.previewLines.joined().contains("{broken"), "invalid snapshot preview fails visibly without exposing raw JSON")
         var largeState = FocusState()
         largeState.tasks = (0..<180).map { FocusTask(id: "large-\($0)", title: String(repeating: "中", count: 120), nextStep: "", day: today) }
         rejects("oversized snapshots fail instead of silently dropping rows") { _ = try ChatDayContext.capture(state: largeState, entries: [], now: now) }

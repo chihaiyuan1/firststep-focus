@@ -74,6 +74,79 @@ public struct ChatDayContext: Codable, Equatable {
             taskCount: tasks.count, timeEntryCount: logs.count, focusCount: records.count, text: text)
     }
 
+    /// Readable disclosure of the exact saved payload; it never fetches current state.
+    public var previewLines: [String] {
+        guard let data = text.data(using: .utf8),
+              let snapshot = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return ["快照预览无法读取，请查看保存错误或重新抓取。"]
+        }
+        guard let zone = TimeZone(identifier: timezone) else { return ["快照时区无效，无法显示来源预览。"] }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.timeZone = zone
+        formatter.dateFormat = "yyyy-MM-dd HH:mm"
+        func timestamp(_ value: Any?) -> String {
+            guard let seconds = value as? Double, seconds.isFinite else { return "时间未知" }
+            return formatter.string(from: Date(timeIntervalSince1970: seconds))
+        }
+        func clock(_ value: Any?) -> String {
+            guard let minute = value as? Int, (0...1440).contains(minute) else { return "时间未知" }
+            return String(format: "%02d:%02d", minute / 60, minute % 60)
+        }
+        func minutes(_ value: Any?) -> String {
+            guard let seconds = value as? Double, seconds.isFinite, seconds >= 0 else { return "未知" }
+            let rendered = String(format: "%.1f", locale: Locale(identifier: "en_US_POSIX"), seconds / 60)
+            return rendered.hasSuffix(".0") ? String(rendered.dropLast(2)) : rendered
+        }
+        func count(_ value: Any?) -> String { (value as? Int).map(String.init) ?? "未知" }
+        func title(_ row: [String: Any]) -> String {
+            let main = row["title"] as? String ?? "标题未知"
+            guard let subtask = row["subtaskTitle"] as? String, !subtask.isEmpty else { return main }
+            return main + " · " + subtask
+        }
+        func status(_ row: [String: Any]) -> String {
+            guard let completed = row["currentCompleted"] as? Bool else { return "未知" }
+            return completed ? "已完成" : "未完成"
+        }
+        func completion(_ row: [String: Any]) -> String {
+            let value = row["completionDay"] as? String ?? "完成日期未知"
+            return value == "完成日期未知" ? "未知" : value
+        }
+        var lines = ["快照日期：\(day)；时区：\(timezone)；抓取时间：\(timestamp(capturedAt))"]
+        let tasks = snapshot["tasks"] as? [[String: Any]] ?? []
+        lines.append("任务：\(tasks.count) 项")
+        for task in tasks {
+            lines.append("任务：\(title(task))；当前状态：\(status(task))；安排日期：\(task["scheduledDay"] as? String ?? "未知")；完成日期：\(completion(task))")
+            if let nextStep = task["nextStep"] as? String, !nextStep.isEmpty { lines.append("下一步：\(nextStep)") }
+            for step in task["steps"] as? [[String: Any]] ?? [] {
+                lines.append("小任务：\(title(step))；当前状态：\(status(step))；完成日期：\(completion(step))")
+            }
+        }
+        let logs = snapshot["manualTimeEntries"] as? [[String: Any]] ?? []
+        lines.append("手动时间记录：\(logs.count) 条")
+        for log in logs {
+            var line = "手动时间：\(log["day"] as? String ?? day) \(clock(log["startMinute"]))–\(clock(log["endMinute"])) · \(title(log))"
+            if let note = log["note"] as? String, !note.isEmpty { line += "；备注：\(note)" }
+            lines.append(line)
+        }
+        if let summary = snapshot["focusSummary"] as? [String: Any] {
+            lines.append("已结束专注汇总：净专注 \(minutes(summary["focusSeconds"])) 分钟；完整 \(count(summary["completedPomodoros"])) 次；提前结束 \(count(summary["earlyEnds"])) 次")
+        }
+        let records = snapshot["focusRecords"] as? [[String: Any]] ?? []
+        lines.append("已结束专注记录：\(records.count) 条（按开始日归档）")
+        for record in records {
+            let ending = (record["finished"] as? Bool).map { $0 ? "完整结束" : "提前结束" } ?? "结束状态未知"
+            lines.append("专注：\(title(record))；\(timestamp(record["startAt"]))–\(timestamp(record["endAt"]))；净专注 \(minutes(record["focusSeconds"])) 分钟；\(ending)；临时访问 \(count(record["temporaryAccessCount"])) 次")
+        }
+        if let active = snapshot["activeSession"] as? [String: Any] {
+            lines.append("活跃会话：\(title(active))；快照当时进行中，不计入汇总；开始 \(timestamp(active["startAt"]))；计划结束 \(timestamp(active["plannedEndAt"]))")
+            if let nextStep = active["nextStep"] as? String, !nextStep.isEmpty { lines.append("活跃会话下一步：\(nextStep)") }
+        } else { lines.append("活跃会话：快照当时没有进行中的会话") }
+        if let limitations = snapshot["limitations"] as? String, !limitations.isEmpty { lines.append("统计说明：\(limitations)") }
+        return lines
+    }
+
     fileprivate func validate() throws {
         guard TimeGrid.date(for: day) != nil, capturedAt.isFinite, TimeZone(identifier: timezone) != nil,
               taskCount >= 0, timeEntryCount >= 0, focusCount >= 0, !text.isEmpty, text.count <= 16_000,
