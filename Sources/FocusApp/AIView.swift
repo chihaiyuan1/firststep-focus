@@ -12,7 +12,7 @@ struct AIView:View {
     private var chosen:FocusTask? {tasks.first {$0.id==assistant.taskID}}
     private var daily:DailyForest {DailyForest(records:model.state.history,on:assistant.reviewDate)}
     var body:some View {
-        VStack(alignment:.leading,spacing:22) {
+        VStack(alignment:.leading,spacing:assistant.kind=="chat" ? 12 : 22) {
             HStack {
                 VStack(alignment:.leading,spacing:7) {Text("AI 助手").font(.system(size:26,weight:.semibold));Text("把事情想具体，把下一步变轻一点。").font(.system(size:13)).foregroundStyle(.secondary)}
                 Spacer()
@@ -59,7 +59,7 @@ struct AIView:View {
                 Text("使用官方 ChatGPT 账号授权，无需 API Key。授权保存在本机；退出账号不删除任务和复盘。").font(.system(size:11)).foregroundStyle(.secondary)
             }.padding(.top,14)
         } label:{Label("账号与模型",systemImage:"person.crop.circle").font(.system(size:12,weight:.medium))}
-        .padding(16).background(purple.opacity(0.06),in:RoundedRectangle(cornerRadius:14))
+        .padding(assistant.kind=="chat" ? 10 : 16).background(purple.opacity(0.06),in:RoundedRectangle(cornerRadius:14))
         .onChange(of:assistant.accounts.count) {count in if count==0 {accountExpanded=true}}
     }
     private var taskSource:some View {

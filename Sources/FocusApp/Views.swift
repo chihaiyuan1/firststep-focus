@@ -52,7 +52,7 @@ struct MainView: View {
                         else if model.page == "sites" { BlockedSitesView(model: model) }
                         else if model.page == "history" { ForestView(model: model) }
                         else { today }
-                    }.padding(32).frame(maxWidth: .infinity, alignment: .leading)
+                    }.padding(model.page=="ai" && assistant.kind=="chat" ? 24 : 32).frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
         }.background(paper).foregroundStyle(ink).frame(minWidth: 790, minHeight: 590).preferredColorScheme(.light)
