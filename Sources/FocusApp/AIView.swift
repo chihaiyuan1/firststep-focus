@@ -19,17 +19,18 @@ struct AIView:View {
                 Label(assistant.connected ? "ChatGPT 已连接" : "连接 ChatGPT",systemImage:assistant.connected ? "checkmark.circle.fill" : "person.crop.circle.badge.questionmark").font(.system(size:11)).foregroundStyle(purple)
             }
             accountCard
-            Picker("助手功能",selection:$assistant.kind) {Text("任务拆解").tag("task");Text("每日复盘").tag("review")}.pickerStyle(.segmented).frame(maxWidth:360)
-            if assistant.kind=="task" {taskSource} else {reviewSource}
+            Picker("助手功能",selection:$assistant.kind) {Text("任务拆解").tag("task");Text("每日复盘").tag("review");Text("自由对话").tag("chat")}.pickerStyle(.segmented).frame(maxWidth:450)
+            if assistant.kind=="task" {taskSource} else if assistant.kind=="review" {reviewSource} else {FreeChatView(model:model,assistant:assistant,chat:assistant.chat)}
             if let error=assistant.error {HStack(alignment:.top) {Image(systemName:"exclamationmark.circle");Text(error).textSelection(.enabled);Spacer();Button("收起") {assistant.error=nil}.buttonStyle(.plain)}.font(.system(size:12)).foregroundStyle(Color(red:0.64,green:0.32,blue:0.16)).padding(14).background(.orange.opacity(0.06),in:RoundedRectangle(cornerRadius:12))}
             if assistant.busy || assistant.signingIn {HStack {ProgressView().controlSize(.small);Text(assistant.status).font(.system(size:12));Spacer();Button("取消") {assistant.cancel()}}.padding(16).background(.white.opacity(0.7),in:RoundedRectangle(cornerRadius:12))}
-            if let reply=assistant.reply {replyCard(reply)}
-            if let error=assistant.journalError {Label(error,systemImage:"externaldrive.badge.exclamationmark").font(.system(size:11)).foregroundStyle(.orange)}
+            if assistant.kind != "chat",let reply=assistant.reply {replyCard(reply)}
+            if assistant.kind != "chat",let error=assistant.journalError {Label(error,systemImage:"externaldrive.badge.exclamationmark").font(.system(size:11)).foregroundStyle(.orange)}
             if assistant.kind=="review" {reviewHistory}
-            Text("点击后才会发送本次任务或所选日期的记录与回答。AI 建议供你修改采用；不会自动调整任务、日程或启动番茄钟。Plus 套餐额度与其他接入应用共享。").font(.system(size:11)).foregroundStyle(.secondary).lineSpacing(4)
+            if assistant.kind != "chat" {Text("点击后才会发送本次任务或所选日期的记录与回答。AI 建议供你修改采用；不会自动调整任务、日程或启动番茄钟。Plus 套餐额度与其他接入应用共享。").font(.system(size:11)).foregroundStyle(.secondary).lineSpacing(4)}
         }
         .onAppear {assistant.loadIfNeeded();useRequestedTask();if assistant.accounts.isEmpty {accountExpanded=true};if assistant.taskID.isEmpty {assistant.taskID=tasks.first?.id ?? ""}}
         .onChange(of:model.aiTaskID) {_ in useRequestedTask()}
+        .onChange(of:assistant.connected) {connected in if connected {accountExpanded=false}}
         .onChange(of:assistant.kind) {_ in assistant.reset()}
         .onChange(of:assistant.taskID) {_ in if assistant.kind=="task" {assistant.reset()}}
         .onChange(of:assistant.day) {_ in if assistant.kind=="review" {assistant.reset()}}
@@ -46,15 +47,15 @@ struct AIView:View {
             VStack(alignment:.leading,spacing:12) {
                 if !assistant.accounts.isEmpty {
                     Picker("账号",selection:$assistant.accountID) {ForEach(assistant.accounts) {account in Text(account.label+(account.isAuthorized ? "" : "（已退出）")).tag(account.id)}}
-                        .disabled(assistant.busy || assistant.signingIn).onChange(of:assistant.accountID) {_ in assistant.switchAccount()}
+                        .disabled(assistant.busy || assistant.signingIn || assistant.chat.busy).onChange(of:assistant.accountID) {_ in assistant.switchAccount()}
                 }
-                if !assistant.models.isEmpty {Picker("模型",selection:$assistant.modelID) {ForEach(assistant.models) {item in Text(item.name).tag(item.id)}}.disabled(assistant.busy).onChange(of:assistant.modelID) {_ in assistant.savePreferences()}}
+                if !assistant.models.isEmpty {Picker("模型",selection:$assistant.modelID) {ForEach(assistant.models) {item in Text(item.name).tag(item.id)}}.disabled(assistant.busy || assistant.chat.busy).onChange(of:assistant.modelID) {_ in assistant.modelSelectionChanged()}}
                 HStack {
                     Button(assistant.accounts.contains(where:{$0.id==assistant.accountID && $0.isAuthorized}) ? "重新连接" : "Continue with ChatGPT") {assistant.signIn()}.buttonStyle(SoftButton(primary:true))
                     if !assistant.accounts.isEmpty {Button("添加账号") {assistant.signIn(newAccount:true)}.buttonStyle(SoftButton())}
                     if assistant.accounts.contains(where:{$0.id==assistant.accountID && $0.isAuthorized}) {Button("退出账号") {assistant.signOut()}.buttonStyle(.borderless)}
-                }.disabled(assistant.busy || assistant.signingIn)
-                HStack {Button("刷新连接") {assistant.error=nil;assistant.reloadAccounts()};Button("查看 ChatGPT 用量") {NSWorkspace.shared.open(URL(string:"https://chatgpt.com/settings/usage")!)}}.font(.system(size:11)).buttonStyle(.link)
+                }.disabled(assistant.busy || assistant.signingIn || assistant.chat.busy)
+                HStack {Button("刷新连接") {assistant.error=nil;assistant.reloadAccounts()};Button("查看 ChatGPT 用量") {NSWorkspace.shared.open(URL(string:"https://chatgpt.com/settings/usage")!)}}.font(.system(size:11)).buttonStyle(.link).disabled(assistant.busy || assistant.signingIn || assistant.chat.busy)
                 Text("使用官方 ChatGPT 账号授权，无需 API Key。授权保存在本机；退出账号不删除任务和复盘。").font(.system(size:11)).foregroundStyle(.secondary)
             }.padding(.top,14)
         } label:{Label("账号与模型",systemImage:"person.crop.circle").font(.system(size:12,weight:.medium))}

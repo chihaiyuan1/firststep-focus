@@ -30,7 +30,7 @@ public actor ChatGPTService {
     }
     public func respond(accountID:String,model:String,instructions:String,messages:[AIMessage]) async throws -> String {
         do {
-            guard !model.isEmpty,!instructions.isEmpty,!messages.isEmpty,messages.count<=12,messages.allSatisfy({["user","assistant"].contains($0.role) && $0.content.count<=16000}) else {throw ChatGPTError.invalidResponse}
+            guard !model.isEmpty,!instructions.isEmpty,!messages.isEmpty,messages.count<=12,messages.allSatisfy({["user","assistant"].contains($0.role) && $0.content.count<=20000}) else {throw ChatGPTError.invalidResponse}
             let token=try await accessToken(accountID)
             var request=URLRequest(url:URL(string:"https://api.openai.com/v1/responses")!)
             request.httpMethod="POST";request.setValue("Bearer \(token)",forHTTPHeaderField:"Authorization");request.setValue("application/json",forHTTPHeaderField:"Content-Type")

@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import Combine
 import FocusCore
 import FocusAI
 
@@ -32,19 +33,25 @@ import FocusAI
     private var loadID=UUID()
     private var loaded=false
     let service:ChatGPTService
+    let chat:ChatModel
+    private var chatChanges:AnyCancellable?
     let journalStore:AIJournalStore
     private let preferences:URL
-    init(directory:URL) {
-        service=ChatGPTService(directory:directory.appendingPathComponent("AI"))
+    init(directory:URL,service:ChatGPTService?=nil,chatResponder:ChatModel.Responder?=nil) {
+        let sharedService=service ?? ChatGPTService(directory:directory.appendingPathComponent("AI"))
+        self.service=sharedService
+        if let chatResponder {chat=ChatModel(directory:directory,responder:chatResponder)}
+        else {chat=ChatModel(directory:directory,service:sharedService)}
         journalStore=AIJournalStore(directory:directory)
         preferences=directory.appendingPathComponent("ai-preferences.json")
         if let data=try? Data(contentsOf:preferences),let prefs=try? JSONDecoder().decode([String:String].self,from:data) {
             accountID=prefs["account"] ?? "";modelID=prefs["model"] ?? ""
         }
+        chatChanges=chat.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }
         reloadJournal()
     }
     var connected:Bool {accounts.contains {$0.id==accountID && $0.isAuthorized} && !modelID.isEmpty && models.contains {$0.id==modelID} }
-    var canSend:Bool {connected && !busy && !signingIn}
+    var canSend:Bool {connected && !busy && !signingIn && !chat.busy}
     var day:String {TimeGrid.dayKey(reviewDate)}
     func loadIfNeeded() {if !loaded {loaded=true;reloadAccounts()}}
     func reloadJournal() {
@@ -70,6 +77,7 @@ import FocusAI
         }
     }
     func switchAccount() {cancel();models=[];modelID="";reloadAccounts()}
+    func modelSelectionChanged() {chat.cancel();savePreferences()}
     func savePreferences() {
         if let data=try? JSONEncoder().encode(["account":accountID,"model":modelID]) {
             do {try data.write(to:preferences,options:.atomic);try FileManager.default.setAttributes([.posixPermissions:0o600],ofItemAtPath:preferences.path)} catch {self.error="默认模型设置未保存，下次打开可重新选择。"}
@@ -98,7 +106,7 @@ import FocusAI
         }
     }
     func cancel() {
-        requestID=UUID();requestTask?.cancel();requestTask=nil;busy=false;signingIn=false
+        requestID=UUID();requestTask?.cancel();requestTask=nil;busy=false;signingIn=false;chat.cancel()
     }
     func reset() {cancel();reply=nil;steps=[];answer="";round=0;turns=[];expectedTaskVersion="";adopted=false;error=nil;status=""}
     func prepareTask(_ task:FocusTask) {

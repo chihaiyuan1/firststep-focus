@@ -30,7 +30,8 @@ private final class RefreshProtocol:URLProtocol {
         let token=request.url!.path.hasSuffix("/token")
         if token {Self.lock.lock();Self.refreshCount+=1;Self.lock.unlock()}
         let item=DispatchWorkItem { [self] in
-            let body=token ? #"{"access_token":"rotated-access","refresh_token":"rotated-refresh","token_type":"Bearer","expires_in":3600}"# : #"{"models":[{"slug":"test-model","display_name":"Test","visibility":"list"}]}"#
+            let completion="data: {\"type\":\"response.output_text.delta\",\"delta\":\"mock-complete\"}\n\ndata: {\"type\":\"response.completed\",\"response\":{\"status\":\"completed\"}}\n\n"
+            let body=request.url!.path.hasSuffix("/responses") ? completion : token ? #"{"access_token":"rotated-access","refresh_token":"rotated-refresh","token_type":"Bearer","expires_in":3600}"# : #"{"models":[{"slug":"test-model","display_name":"Test","visibility":"list"}]}"#
             client?.urlProtocol(self,didReceive:HTTPURLResponse(url:request.url!,statusCode:200,httpVersion:nil,headerFields:nil)!,cacheStoragePolicy:.notAllowed)
             client?.urlProtocol(self,didLoad:Data(body.utf8));client?.urlProtocolDidFinishLoading(self)
         }
@@ -143,6 +144,13 @@ private final class RefreshProtocol:URLProtocol {
         async let second=mockService.models(accountID:id)
         _=try await (first,second)
         try check(RefreshProtocol.count()==2,"concurrent requests refreshed the same token twice")
+        let wrapped=String(repeating:"问",count:16000)+"元数据日期"
+        let wireAnswer=try await mockService.respond(accountID:id,model:"test-model",instructions:"fixture",messages:[AIMessage(role:"user",content:wrapped)])
+        try check(wireAnswer=="mock-complete","semantic history plus metadata rejected by wire limit")
+        do {
+            _=try await mockService.respond(accountID:id,model:"test-model",instructions:"fixture",messages:[AIMessage(role:"user",content:String(repeating:"x",count:20001))])
+            throw CheckFailure(message:"unbounded wire content accepted")
+        } catch let error as CheckFailure {throw error} catch {}
         mockSession.invalidateAndCancel()
         let callbackServer=CallbackServer(state:"server-state")
         let callbackURL=try await callbackServer.start()
