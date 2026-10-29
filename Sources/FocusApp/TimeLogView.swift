@@ -149,13 +149,14 @@ struct TimeLogView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(displayed.title).font(.system(size: 10, weight: .medium)).lineLimit(height > 90 ? 4 : (height > 50 ? 2 : 1)).frame(maxWidth: .infinity, alignment: .leading)
                     if height > 43 { Text("\(minuteText(displayed.startMinute))–\(minuteText(displayed.endMinute))").font(.system(size: 8, design: .monospaced)).foregroundStyle(logInk.opacity(0.65)).lineLimit(1).minimumScaleFactor(0.75) }
+                    if height > 75, entry.taskID != nil { Text("关联：\(entry.linkedTaskTitle(tasks: model.state.tasks) ?? "原任务已移除")").font(.system(size: 9)).foregroundStyle(logInk.opacity(0.7)).lineLimit(1) }
                 }.padding(.horizontal, 6)
                 Spacer(minLength: 0)
                 resizeHandle(entry, edge: "end", color: palette.1, compact: height < 30)
             }
         }.clipShape(RoundedRectangle(cornerRadius: 6)).contentShape(Rectangle())
         .overlay(RoundedRectangle(cornerRadius: 6).stroke(palette.1.opacity(0.15)))
-        .help("\(entry.title)\n\(entry.day) \(minuteText(entry.startMinute))–\(minuteText(entry.endMinute))\(entry.note.isEmpty ? "" : "\n" + entry.note)")
+        .help("\(entry.title)\n\(entry.day) \(minuteText(entry.startMinute))–\(minuteText(entry.endMinute))\(entry.taskID == nil ? "" : "\n关联：" + (entry.linkedTaskTitle(tasks: model.state.tasks) ?? "原任务已移除"))\(entry.note.isEmpty ? "" : "\n" + entry.note)")
         .onTapGesture { editEntry(entry) }
         .gesture(DragGesture(minimumDistance: 6, coordinateSpace: .global).onChanged { value in
             let base = original(entry)
@@ -200,10 +201,18 @@ private struct TimeEntryEditor: View {
     @State private var start = 540
     @State private var end = 570
     @State private var validation: String?
+    @State private var taskID = ""
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             Text(draft.existing == nil ? "这段时间做了什么？" : "修改时间记录").font(.system(size: 23, weight: .semibold))
             TextField("例如：写文章、拜访客户、午休", text: $title).textFieldStyle(.roundedBorder).font(.system(size: 14))
+            Picker("关联任务（选填）", selection: $taskID) {
+                Text("不关联").tag("")
+                if !taskID.isEmpty && !model.state.tasks.contains(where: { $0.id == taskID }) { Text(draft.existing?.taskTitleSnapshot.map { $0 + "（原任务已移除）" } ?? "原任务已移除（保留关联）").tag(taskID) }
+                ForEach(model.state.tasks) { task in Text(task.title).tag(task.id) }
+            }.onChange(of: taskID) { id in
+                if let task = model.state.tasks.first(where: { $0.id == id }), title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { title = task.title }
+            }
             DatePicker("日期", selection: $date, displayedComponents: .date)
             HStack(spacing: 24) { DatePicker("开始", selection: timeBinding(start: true), displayedComponents: .hourAndMinute); DatePicker("结束", selection: timeBinding(start: false), displayedComponents: .hourAndMinute) }
             Text("可填写 07:00–20:00 的任意时段；日历拖动按半小时对齐。").font(.system(size: 11)).foregroundStyle(logQuiet)
@@ -223,7 +232,7 @@ private struct TimeEntryEditor: View {
                 Button("保存记录") { save() }.buttonStyle(SoftButton(primary: true)).keyboardShortcut(.defaultAction).disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         }.padding(30).frame(width: 480).background(logPaper).foregroundStyle(logInk)
-        .onAppear { date = draft.date; start = draft.start; end = draft.end; title = draft.existing?.title ?? ""; note = draft.existing?.note ?? ""; color = draft.existing?.color ?? "violet" }
+        .onAppear { date = draft.date; start = draft.start; end = draft.end; title = draft.existing?.title ?? ""; note = draft.existing?.note ?? ""; color = draft.existing?.color ?? "violet"; taskID = draft.existing?.taskID ?? "" }
     }
     private func timeBinding(start isStart: Bool) -> Binding<Date> {
         Binding(get: {
@@ -236,7 +245,8 @@ private struct TimeEntryEditor: View {
     }
     private func save() {
         do {
-            let entry = try TimeEntry(id: draft.existing?.id ?? UUID().uuidString, day: TimeGrid.dayKey(date), startMinute: start, endMinute: end, title: title, note: note, color: color)
+            let snapshot = taskID == draft.existing?.taskID ? (draft.existing?.taskTitleSnapshot ?? model.state.tasks.first(where: { $0.id == taskID })?.title) : model.state.tasks.first(where: { $0.id == taskID })?.title
+            let entry = try TimeEntry(id: draft.existing?.id ?? UUID().uuidString, day: TimeGrid.dayKey(date), startMinute: start, endMinute: end, title: title, note: note, color: color, taskID: taskID.isEmpty ? nil : taskID, taskTitleSnapshot: taskID.isEmpty ? nil : snapshot)
             if model.saveTimeEntry(entry) { dismiss() }
         } catch { validation = error.localizedDescription }
     }

@@ -47,7 +47,10 @@ extension FocusState {
         } else {
             guard let j = steps.firstIndex(where: { $0.id == command.subtaskID }) else { throw FocusError("这个小任务已不存在") }
             if command.action == "deleteSubtask" { steps.remove(at: j) }
-            else if command.action == "completeSubtask" { steps[j].completed.toggle(); steps[j].completedAt = steps[j].completed ? now : nil }
+            else if command.action == "completeSubtask" {
+                steps[j].completed.toggle(); steps[j].completedAt = steps[j].completed ? now : nil
+                if steps[j].completed { appendCompletion(task: tasks[i], subtask: steps[j], completedAt: now) }
+            }
             else {
                 let title = (command.title ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !title.isEmpty, title.count <= 120 else { throw FocusError("小任务请填写 1–120 字") }

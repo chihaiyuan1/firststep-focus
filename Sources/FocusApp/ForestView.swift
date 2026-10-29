@@ -41,6 +41,7 @@ struct ForestView: View {
             } else {
                 FocusPeriodView(records: model.state.history, scope: scope, date: $date, today: today)
             }
+            HourlyFocusView(records: model.state.history, now: Date(timeIntervalSince1970: model.now))
             Text("按专注开始日期归档。完整结束长成树，提前结束留下树坑；临时开放网站的时段不计入专注分钟。日常活动仍可在「时间记录」中手动填写。")
                 .font(.system(size: 11)).foregroundStyle(forestQuiet).lineSpacing(4)
         }
@@ -121,7 +122,8 @@ struct ForestView: View {
     }
 
     private var selectionDetail: some View {
-        HStack(spacing: 10) {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
             ForestPlant(kind: selected?.kind ?? .tree).frame(width: 28, height: 32)
                 .padding(5).background(forestSage.opacity(0.07), in: RoundedRectangle(cornerRadius: 10))
             VStack(alignment: .leading, spacing: 5) {
@@ -139,7 +141,9 @@ struct ForestView: View {
                 .padding(.horizontal, 8).padding(.vertical, 6)
                 .background((selected?.kind == .pit ? Color.brown : forestSage).opacity(0.08), in: RoundedRectangle(cornerRadius: 7))
         }
-        .accessibilityElement(children: .combine)
+            .accessibilityElement(children: .combine)
+            if let item = selected { SessionReflectionSummary(model: model, record: item.record) }
+        }
     }
 
     private var legend: some View {
@@ -186,7 +190,8 @@ struct ForestView: View {
         }
     }
     private func recordRow(_ item: ForestItem) -> some View {
-        Button { selectedID = item.id } label: {
+        VStack(alignment: .leading, spacing: 0) {
+            Button { selectedID = item.id } label: {
             HStack(spacing: 12) {
                 ForestPlant(kind: item.kind).frame(width: 25, height: 32)
                     .padding(5).background(forestSage.opacity(0.06), in: RoundedRectangle(cornerRadius: 9))
@@ -202,7 +207,10 @@ struct ForestView: View {
             }.padding(.horizontal, 15).padding(.vertical, 13)
                 .background(selectedID == item.id ? forestSage.opacity(0.06) : .clear)
                 .contentShape(Rectangle())
-        }.buttonStyle(.plain).accessibilityLabel("\(item.record.displayTitle)，\(item.record.finished ? "完整完成" : "提前结束")，专注 \(Int(item.record.focusSeconds / 60)) 分钟，查看\(item.kind.title)")
+            }.buttonStyle(.plain).accessibilityLabel("\(item.record.displayTitle)，\(item.record.finished ? "完整完成" : "提前结束")，专注 \(Int(item.record.focusSeconds / 60)) 分钟，查看\(item.kind.title)")
+            SessionReflectionSummary(model: model, record: item.record, compact: true)
+                .padding(.horizontal, 15).padding(.bottom, 13)
+        }
     }
     private func moveDay(_ delta: Int) {
         if let next = calendar.date(byAdding: .day, value: delta, to: date) { date = next }

@@ -22,17 +22,19 @@ public final class StateStore {
         if fm.fileExists(atPath: url.path) {
             do { state = try JSONDecoder().decode(FocusState.self, from: Data(contentsOf: url)) }
             catch { throw FocusError("本地数据无法读取，已保留原文件：\(url.path)") }
-            guard [1, 2, 3, 4].contains(state.schema) else { throw FocusError("数据来自其他版本，请先升级工具") }
+            guard (1...6).contains(state.schema) else { throw FocusError("数据来自其他版本，请先升级工具") }
         } else { state = FocusState() }
         try BlockedSite.validate(state.effectiveBlockedSites)
         try InboxItem.validate(state.inboxItems ?? [])
         try state.validateSubtasks()
-        state.schema = 4
+        try state.validateTaskProgress()
         state.tick(now: now)
+        state.migrateTaskCompletions()
         if let command { try state.apply(command, now: now) }
         try BlockedSite.validate(state.effectiveBlockedSites)
         try InboxItem.validate(state.inboxItems ?? [])
         try state.validateSubtasks()
+        try state.validateTaskProgress()
         let encoder = JSONEncoder(); encoder.outputFormatting = [.sortedKeys]
         let data = try encoder.encode(state)
         if (try? Data(contentsOf: url)) != data {

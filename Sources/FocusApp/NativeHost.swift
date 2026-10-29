@@ -26,7 +26,8 @@ func runNativeHost() {
             }
             var state = try store.transact(command: command)
             state.inboxItems = nil
-            for i in state.tasks.indices { state.tasks[i].subtasks = nil }
+            state.completionRecords = nil
+            for i in state.tasks.indices { state.tasks[i].subtasks = nil; state.tasks[i].scheduledDay = nil; state.tasks[i].reminderAt = nil }
             // Only the browser snapshot is bounded; old daily forests stay on disk.
             state.history = Array(state.history.prefix(500))
             reply = HostReply(id: request.id, ok: true, state: state, error: nil)

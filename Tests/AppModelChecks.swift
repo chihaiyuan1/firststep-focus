@@ -36,6 +36,23 @@ import FocusCore
         model.completeFocusedTask()
         let parent = model.state.tasks.first(where: {$0.id == inboxID})!
         guard !parent.completed && parent.steps.last?.completed == true && parent.steps.first?.completed == false else { throw FocusError("Completion card must mark only focused subtask") }
-        print("PASS: AppModel completion notifications, inbox-to-Today selection without auto-start, delete and undo")
+        try model.capture("快捷输入今天", to: .today)
+        guard model.state.tasks.last?.title == "快捷输入今天", model.selectedTask == model.state.tasks.last?.id, model.state.session == nil else { throw FocusError("Today capture must select without starting") }
+        model.start()
+        let active = model.state.session, selected = model.selectedTask
+        try model.capture("稍后处理的事", to: .inbox)
+        try model.capture("专注时补记任务", to: .today)
+        guard active != nil, model.state.session == active, model.selectedTask == selected,
+              model.state.activeInboxItems.last?.title == "稍后处理的事", model.state.tasks.last?.title == "专注时补记任务" else { throw FocusError("Capture must preserve active task and deadline") }
+        let taskCount = model.state.tasks.count, inboxCount = model.state.activeInboxItems.count
+        for bad in ["  ", String(repeating: "字", count: 121)] {
+            for destination in CaptureDestination.allCases {
+                var rejected = false
+                do { try model.capture(bad, to: destination) } catch { rejected = true }
+                guard rejected else { throw FocusError("Invalid capture should be rejected") }
+            }
+        }
+        guard model.state.tasks.count == taskCount, model.state.activeInboxItems.count == inboxCount, model.state.session == active else { throw FocusError("Rejected input cannot alter records") }
+        print("PASS: AppModel completion, inbox-to-Today, undo, subtask selection, quick capture and active-session preservation")
     }
 }

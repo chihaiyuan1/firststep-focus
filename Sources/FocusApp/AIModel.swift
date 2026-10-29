@@ -22,6 +22,7 @@ import FocusAI
     @Published var reviewDate=Date()
     @Published var taskID=""
     @Published var journal:[AIJournalEntry]=[]
+    @Published private(set) var reviewSourceContext:String?
     @Published var adopted=false
     private(set) var expectedTaskVersion=""
     private(set) var turns:[AITurn]=[]
@@ -108,16 +109,35 @@ import FocusAI
     func cancel() {
         requestID=UUID();requestTask?.cancel();requestTask=nil;busy=false;signingIn=false;chat.cancel()
     }
-    func reset() {cancel();reply=nil;steps=[];answer="";round=0;turns=[];expectedTaskVersion="";adopted=false;error=nil;status=""}
+    func reset() {cancel();reviewSourceContext=nil;reply=nil;steps=[];answer="";round=0;turns=[];expectedTaskVersion="";adopted=false;error=nil;status=""}
     func prepareTask(_ task:FocusTask) {
         reset();kind="task";taskID=task.id;title=task.title;expectedTaskVersion=task.editVersion
         contextDay=TimeGrid.dayKey(Date());turns=[AITurn(role:"user",content:AssistantPrompts.taskContext(task))]
     }
-    func prepareReview(state:FocusCore.FocusState,entries:[TimeEntry]) {
+    @discardableResult func prepareReview(state:FocusCore.FocusState,entries:[TimeEntry],reflections:[SessionReflection]=[])->Bool {
+        let originalAnswer=answer
         let supplement=answer.trimmingCharacters(in:.whitespacesAndNewlines)
+        let context=AssistantPrompts.reviewContext(state:state,entries:entries,day:day,reflections:reflections)
+        let input=context+(supplement.isEmpty ? "" : "\n用户补充："+supplement)
         reset();kind="review";contextDay=day;title="\(day) 每日复盘"
-        let context=AssistantPrompts.reviewContext(state:state,entries:entries,day:day)
-        turns=[AITurn(role:"user",content:context+(supplement.isEmpty ? "" : "\n用户补充："+supplement))]
+        guard input.count<=16000 else {
+            answer=originalAnswer
+            error="这一天的记录与想法超过 16000 字，未裁切或发送资料；请减少补充文字或精简记录后重试。"
+            return false
+        }
+        reviewSourceContext=context
+        turns=[AITurn(role:"user",content:input)]
+        return true
+    }
+    @discardableResult func prepareWeeklyReview(state:FocusCore.FocusState, entries:[TimeEntry], reflections:[SessionReflection] = []) -> Bool {
+        let originalAnswer = answer
+        let supplement = answer.trimmingCharacters(in:.whitespacesAndNewlines)
+        let context = AssistantPrompts.weeklyReviewContext(state:state, entries:entries, on:reviewDate, reflections:reflections)
+        let input = context + (supplement.isEmpty ? "" : "\n用户补充：" + supplement)
+        let week = FocusStatisticsScope.week.interval(containing: reviewDate)
+        reset(); kind = "weeklyReview"; contextDay = TimeGrid.dayKey(week.start); title = "\(contextDay) 当周复盘"
+        guard input.count <= 16000 else { answer = originalAnswer; error = "本周记录与想法超过 16000 字，未裁切或发送资料；请减少补充文字或精简记录后重试。"; return false }
+        reviewSourceContext = context; turns = [AITurn(role:"user", content:input)]; return true
     }
     func ask() {send(stage:"questions",includeAnswer:round>0)}
     func suggest() {send(stage:"suggestion",includeAnswer:true)}
@@ -142,7 +162,7 @@ import FocusAI
                 if result.kind=="questions" {round+=1;status="第 \(round) 轮 · 想清楚一点再开始"}
                 else {
                     let entry=AIJournalEntry(day:contextDay,kind:currentKind,taskID:currentKind=="task" ? taskID : nil,title:title,turns:turns,reply:result)
-                    do {journal=try journalStore.append(entry);journalError=nil;status=currentKind=="review" ? "复盘已保存在本机" : "草案已生成，修改后再采用"}
+                    do {journal=try journalStore.append(entry);journalError=nil;status=currentKind != "task" ? "复盘已保存在本机" : "草案已生成，修改后再采用"}
                     catch {journalError=error.localizedDescription;status="建议已生成，但本地保存失败"}
                 }
                 busy=false

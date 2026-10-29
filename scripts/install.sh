@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
-if [ ! -x 'dist/先做一刻.app/Contents/MacOS/FirstStep' ]; then ./scripts/build.sh; fi
+./scripts/build.sh
 python3 - <<'PY'
 import base64, hashlib, json, os, shutil, signal, subprocess
 from datetime import datetime

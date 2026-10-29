@@ -10,6 +10,7 @@ struct InboxView: View {
     @ObservedObject var model: AppModel
     @State private var title = ""
     @State private var editing: InboxItem?
+    @State private var scheduling: InboxItem?
     @SwiftUI.FocusState private var captureFocused: Bool
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
@@ -37,9 +38,11 @@ struct InboxView: View {
                         HStack(spacing: 12) {
                             Image(systemName: "tray").font(.system(size: 17)).foregroundStyle(inboxSage)
                             Text(item.title).font(.system(size: 14, weight: .medium)).frame(maxWidth: .infinity, alignment: .leading).fixedSize(horizontal: false, vertical: true)
+                            if let day = item.scheduledDay { Text(day).font(.system(size: 10)).foregroundStyle(inboxQuiet) }
                             Button("移到今天") { _ = model.moveInboxToToday(item.id) }.buttonStyle(SoftButton())
                             Menu {
                                 Button("修改标题") { editing = item }
+                                Button("安排日期或提醒") { scheduling = item }
                                 Button("删除", role: .destructive) { model.removeInboxItem(item.id) }
                             } label: { Image(systemName: "ellipsis").frame(width: 20) }.menuStyle(.borderlessButton).frame(width: 24).accessibilityLabel("操作 \(item.title)")
                         }.padding(16).background(.white.opacity(0.7), in: RoundedRectangle(cornerRadius: 12))
@@ -49,6 +52,7 @@ struct InboxView: View {
             Text("定期回看，把准备做的事写成一个能开始的动作。所有内容仅保存在本机。").font(.system(size: 11)).foregroundStyle(inboxQuiet).lineSpacing(4)
         }.foregroundStyle(inboxInk)
         .sheet(item: $editing) { item in InboxTitleEditor(model: model, item: item) }
+        .sheet(item: $scheduling) { item in ScheduleEditor(model: model, id: item.id, title: item.title, isInbox: true, day: item.scheduledDay, reminderAt: item.reminderAt) }
     }
     private func capture() {
         guard !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }

@@ -10,7 +10,7 @@ import Foundation
   var state=try store.transact(command:Command("addTask",title:"读书笔记"),now:now)
   let id=state.tasks[0].id, version=state.tasks[0].editVersion
   state=try store.transact(command:Command("appendSubtasks",taskID:id,subtaskTitles:["摘录三段文字","写下一个感想"],expectedTaskVersion:version),now:now)
-  check(state.schema==4 && state.tasks[0].steps.count==2,"subtasks persist with migration")
+  check(state.schema==6 && state.tasks[0].steps.count==2,"subtasks persist with migration")
   let step=state.tasks[0].steps[0]
   rejected { _=try store.transact(command:Command("appendSubtasks",taskID:id,subtaskTitles:["过期建议"],expectedTaskVersion:version),now:now) }
   rejected { _=try store.transact(command:Command("start",taskID:id,minutes:15),now:now) }
@@ -38,7 +38,7 @@ import Foundation
   let oldDir=dir.appendingPathComponent("old");try FileManager.default.createDirectory(at:oldDir,withIntermediateDirectories:true)
   try old.write(to:oldDir.appendingPathComponent("state.json"))
   let migrated=try StateStore(directory:oldDir).transact(now:now)
-  check(migrated.schema==4 && migrated.tasks[0].steps.isEmpty && migrated.tasks[0].completedAt==nil,"no invented old completion date")
+  check(migrated.schema==6 && migrated.tasks[0].steps.isEmpty && migrated.tasks[0].completedAt==nil,"no invented old completion date")
   print("PASS: subtasks migration, explicit selection, snapshot attribution, completion, stale adoption and active edit guards")
  }
 }

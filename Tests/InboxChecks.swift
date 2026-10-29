@@ -53,7 +53,7 @@ func inbox(_ state: FocusState) throws -> [[String: Any]] {
         legacy["schema"] = 2; legacy.removeValue(forKey: "inboxItems")
         try JSONSerialization.data(withJSONObject: legacy).write(to: file)
         let migrated = try store.transact(now: 1009)
-        try check(migrated.schema == 4 && migrated.tasks == state.tasks && migrated.session == session, "Schema2 migration preserves focus and tasks")
+        try check(migrated.schema == 6 && migrated.tasks == state.tasks && migrated.session == session, "Schema2 migration preserves focus and tasks")
         try check(try inbox(migrated).isEmpty, "Migration starts empty")
         state = try store.transact(command: Command("addInbox", title: "并发移动"), now: 1010)
         let concurrentID = try inbox(state).first?["id"] as! String

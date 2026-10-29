@@ -2,7 +2,7 @@ import Foundation
 import Darwin
 
 private struct TimeLogDocument: Codable {
-    var schema = 1
+    var schema = 3
     var entries: [TimeEntry] = []
 }
 public final class TimeLogStore {
@@ -39,10 +39,11 @@ public final class TimeLogStore {
         if fm.fileExists(atPath: file.path) {
             do { document = try JSONDecoder().decode(TimeLogDocument.self, from: Data(contentsOf: file)); try document.entries.forEach { try $0.validate() } }
             catch { throw FocusError("时间记录无法读取，已保留原文件：\(file.path)") }
-            guard document.schema == 1 else { throw FocusError("时间记录版本不兼容，请先升级") }
+            guard (1...3).contains(document.schema) else { throw FocusError("时间记录版本不兼容，请先升级") }
         }
         if let change {
             try change(&document.entries)
+            document.schema = 3
             let encoder = JSONEncoder(); encoder.outputFormatting = [.sortedKeys]
             try encoder.encode(document).write(to: file, options: .atomic)
             try fm.setAttributes([.posixPermissions: 0o600], ofItemAtPath: file.path)

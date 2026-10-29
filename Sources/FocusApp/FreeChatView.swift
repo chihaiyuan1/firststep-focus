@@ -10,7 +10,7 @@ struct FreeChatView:View {
     @State private var confirmNew=false
     private let purple=Color(red:0.41,green:0.32,blue:0.66)
     var body:some View {
-        let result=Result {try ChatDayContext.capture(state:model.state,entries:model.timeEntries,now:Date(timeIntervalSince1970:model.now))}
+        let result=Result {try ChatDayContext.capture(state:model.state,entries:model.timeEntries,now:Date(timeIntervalSince1970:model.now),reflections:model.reflections)}
         let context=try? result.get()
         return VStack(alignment:.leading,spacing:12) {
             HStack {
@@ -51,10 +51,15 @@ struct FreeChatView:View {
                     Text(chat.busy ? "仅完整回复会保存" : chat.status.isEmpty ? "⌘↵ 发送，回车换行" : chat.status).font(.system(size:10)).foregroundStyle(.secondary)
                     Spacer()
                     if chat.busy {Button("取消") {chat.cancel()}.buttonStyle(SoftButton())}
-                    else {Button("发送") {chat.send(state:model.state,entries:model.timeEntries,accountID:assistant.accountID,modelID:assistant.modelID)}.buttonStyle(SoftButton(primary:true)).keyboardShortcut(.return,modifiers:.command).disabled(!assistant.canSend || chat.needsSave || context==nil || chat.draft.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty)}
+                    else {Button("发送") {
+                        do {
+                            let reflections=try model.reflectionsForAI()
+                            chat.send(state:model.state,entries:model.timeEntries,accountID:assistant.accountID,modelID:assistant.modelID,reflections:reflections)
+                        } catch {chat.error=error.localizedDescription}
+                    }.buttonStyle(SoftButton(primary:true)).keyboardShortcut(.return,modifiers:.command).disabled(!assistant.canSend || chat.needsSave || context==nil || chat.draft.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty)}
                 }
             }
-            Text("发送时附上今天的记录及最近 5 轮问答；聊天保存在本机，使用当前 ChatGPT 模型与额度，不自动修改任务。").font(.system(size:10)).foregroundStyle(.secondary).lineSpacing(4)
+            Text("发送时附上今天的记录、已保存想法及最近 5 轮问答；聊天保存在本机，使用当前 ChatGPT 模型与额度，不自动修改任务。").font(.system(size:10)).foregroundStyle(.secondary).lineSpacing(4)
         }
         .sheet(isPresented:$history) {historySheet}
         .alert("当前回答尚未保存",isPresented:$confirmNew) {Button("留在这里",role:.cancel) {};Button("另开新对话") {chat.newConversation()}} message:{Text("新建后将清空当前页面，建议先重新保存或复制回答。已保存的历史不会删除。")}

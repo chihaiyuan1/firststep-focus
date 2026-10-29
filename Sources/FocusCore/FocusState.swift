@@ -8,6 +8,9 @@ public struct FocusTask: Codable, Identifiable, Equatable {
     public var completed = false
     public var subtasks: [FocusSubtask]?
     public var completedAt: Double?
+    public var estimatedPomodoros: Int?
+    public var scheduledDay: String? = nil
+    public var reminderAt: Double? = nil
 }
 public struct Allowance: Codable, Equatable {
     public var site: String
@@ -59,11 +62,18 @@ public struct Command: Codable {
     public var subtaskID: String?
     public var subtaskTitles: [String]?
     public var expectedTaskVersion: String?
-    public init(_ action: String, taskID: String? = nil, title: String? = nil, nextStep: String? = nil, minutes: Int? = nil, site: String? = nil, requestID: String? = nil, reason: String? = nil, protocolVersion: Int? = nil, subtaskID: String? = nil, subtaskTitles: [String]? = nil, expectedTaskVersion: String? = nil) {
+    public var estimatedPomodoros: Int?
+    public var updateEstimate: Bool?
+    public var scheduledDay: String?
+    public var reminderAt: Double?
+    public var consumeReminder: Bool?
+    public init(_ action: String, taskID: String? = nil, title: String? = nil, nextStep: String? = nil, minutes: Int? = nil, site: String? = nil, requestID: String? = nil, reason: String? = nil, protocolVersion: Int? = nil, subtaskID: String? = nil, subtaskTitles: [String]? = nil, expectedTaskVersion: String? = nil, estimatedPomodoros: Int? = nil, updateEstimate: Bool? = nil, scheduledDay: String? = nil, reminderAt: Double? = nil, consumeReminder: Bool? = nil) {
         self.action = action; self.taskID = taskID; self.title = title; self.nextStep = nextStep
         self.minutes = minutes; self.site = site; self.requestID = requestID; self.reason = reason
         self.protocolVersion = protocolVersion
         self.subtaskID = subtaskID; self.subtaskTitles = subtaskTitles; self.expectedTaskVersion = expectedTaskVersion
+        self.estimatedPomodoros = estimatedPomodoros; self.updateEstimate = updateEstimate
+        self.scheduledDay = scheduledDay; self.reminderAt = reminderAt; self.consumeReminder = consumeReminder
     }
 }
 public struct FocusError: LocalizedError {
@@ -72,7 +82,7 @@ public struct FocusError: LocalizedError {
     public var errorDescription: String? { message }
 }
 public struct FocusState: Codable {
-    public var schema = 4
+    public var schema = 6
     public var tasks: [FocusTask] = []
     public var session: Session?
     public var history: [FocusRecord] = []
@@ -83,6 +93,7 @@ public struct FocusState: Codable {
     public var extensionProtocol: Int?
     public var blockedSites: [BlockedSite]?
     public var inboxItems: [InboxItem]?
+    public var completionRecords: [TaskCompletionRecord]?
     public init() {}
     public var effectiveBlockedSites: [BlockedSite] { blockedSites ?? BlockedSite.defaults }
     public func canonicalBlockedSite(_ value: String) -> String? {
@@ -118,7 +129,11 @@ public struct FocusState: Codable {
     }
     public mutating func apply(_ c: Command, now: Double) throws {
         guard now.isFinite else { throw FocusError("时间无效") }
+        guard (1...6).contains(schema) else { throw FocusError("数据来自其他版本，请先升级工具") }
+        try validateTaskProgress()
+        if let estimate = c.estimatedPomodoros, estimate <= 0 { throw FocusError("预估番茄钟请填写正整数") }
         tick(now: now)
+        migrateTaskCompletions()
         func text(_ value: String?, maxLength: Int = 120) -> String {
             String((value ?? "").trimmingCharacters(in: .whitespacesAndNewlines).prefix(maxLength))
         }
@@ -129,7 +144,7 @@ public struct FocusState: Codable {
         switch c.action {
         case "getState": break
         case "appendSubtasks", "editSubtask", "deleteSubtask", "completeSubtask": try applySubtasks(c, now: now)
-        case "addInbox", "editInbox", "deleteInbox", "restoreInbox", "moveInboxToday": try applyInbox(c, now: now)
+        case "addInbox", "editInbox", "deleteInbox", "restoreInbox", "moveInboxToday", "scheduleInbox", "dismissInboxReminder": try applyInbox(c, now: now)
         case "heartbeat": lastExtensionSeen = now; extensionError = c.reason?.isEmpty == false ? c.reason : nil; extensionProtocol = c.protocolVersion
         case "addBlockedSite", "removeBlockedSite":
             guard session == nil else { throw FocusError("这一轮结束后再修改屏蔽网站；临时访问仍需等待 30 秒") }
@@ -148,18 +163,32 @@ public struct FocusState: Codable {
             blockedSites = sites
         case "addTask":
             let title = text(c.title); guard !title.isEmpty else { throw FocusError("先写下你想做的事") }
-            tasks.append(FocusTask(title: title, nextStep: text(c.nextStep, maxLength: 180), day: Self.day(at: now)))
-        case "editTask", "completeTask", "deleteTask", "moveToday":
+            tasks.append(FocusTask(title: title, nextStep: text(c.nextStep, maxLength: 180), day: Self.day(at: now), estimatedPomodoros: c.estimatedPomodoros))
+        case "editTask", "completeTask", "deleteTask", "moveToday", "scheduleTask", "dismissTaskReminder":
             let i = try index()
             guard session?.taskID != tasks[i].id else { throw FocusError("请等这一轮结束后再修改任务") }
             if c.action == "editTask" {
                 let title = text(c.title); guard !title.isEmpty else { throw FocusError("任务名称不能为空") }
                 tasks[i].title = title; tasks[i].nextStep = text(c.nextStep, maxLength: 180)
-            } else if c.action == "completeTask" { tasks[i].completed.toggle(); tasks[i].completedAt = tasks[i].completed ? now : nil }
-            else if c.action == "moveToday" { tasks[i].day = Self.day(at: now); tasks[i].completed = false; tasks[i].completedAt = nil }
+                if c.updateEstimate == true || c.estimatedPomodoros != nil { tasks[i].estimatedPomodoros = c.estimatedPomodoros }
+            } else if c.action == "completeTask" {
+                tasks[i].completed.toggle(); tasks[i].completedAt = tasks[i].completed ? now : nil
+                if tasks[i].completed { tasks[i].reminderAt = nil; appendCompletion(task: tasks[i], completedAt: now) }
+            }
+            else if c.action == "moveToday" {
+                let reminder = c.consumeReminder == true ? nil : tasks[i].reminderAt
+                tasks[i].day = Self.day(at: now); tasks[i].completed = false; tasks[i].completedAt = nil
+                tasks[i].scheduledDay = reminder == nil ? nil : Self.day(at: now); tasks[i].reminderAt = reminder
+            }
+            else if c.action == "scheduleTask" { try validateSchedule(day: c.scheduledDay, reminderAt: c.reminderAt); tasks[i].scheduledDay = c.scheduledDay; tasks[i].reminderAt = c.reminderAt }
+            else if c.action == "dismissTaskReminder" { tasks[i].reminderAt = nil }
             else { tasks.remove(at: i) }
-        case "start":
+        case "start", "startShortcut":
             guard session == nil else { throw FocusError("先完成当前这一轮") }
+            if c.action == "startShortcut" {
+                guard breakUntil == nil else { throw FocusError("正在休息，请先在主窗口结束休息，再开始专注。") }
+                guard pending == nil else { throw FocusError("请先完成或取消当前确认，再开始专注。") }
+            }
             let i = try index()
             guard !tasks[i].completed else { throw FocusError("这件事已经完成了") }
             guard let minutes = c.minutes, [15,25,30,45].contains(minutes) else { throw FocusError("请选择 15、25、30 或 45 分钟") }

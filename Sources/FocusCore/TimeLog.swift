@@ -9,18 +9,26 @@ public struct TimeEntry: Codable, Identifiable, Equatable {
     public var note: String
     public var color: String
     public var deletedAt: Double?
-    public init(id: String = UUID().uuidString, day: String, startMinute: Int, endMinute: Int, title: String, note: String = "", color: String = "violet") throws {
+    public var taskID: String?
+    public var taskTitleSnapshot: String?
+    public init(id: String = UUID().uuidString, day: String, startMinute: Int, endMinute: Int, title: String, note: String = "", color: String = "violet", taskID: String? = nil, taskTitleSnapshot: String? = nil) throws {
         self.id = id; self.day = day; self.startMinute = startMinute; self.endMinute = endMinute
-        self.title = title.trimmingCharacters(in: .whitespacesAndNewlines); self.note = note; self.color = color
+        self.title = title.trimmingCharacters(in: .whitespacesAndNewlines); self.note = note; self.color = color; self.taskID = taskID; self.taskTitleSnapshot = taskTitleSnapshot
         try validate()
     }
     public func validate() throws {
         guard !id.isEmpty, id.count <= 100 else { throw FocusError("记录编号无效") }
+        guard taskID.map({ !$0.isEmpty && $0.count <= 100 }) != false else { throw FocusError("关联任务编号无效") }
+        guard taskTitleSnapshot.map({ taskID != nil && !$0.trimmingCharacters(in:.whitespacesAndNewlines).isEmpty && $0.count <= 120 }) != false else { throw FocusError("关联任务名称无效") }
         guard TimeGrid.date(for: day) != nil else { throw FocusError("请选择有效日期") }
         guard startMinute >= 420, endMinute <= 1200, endMinute > startMinute else { throw FocusError("起止时间需在 07:00–20:00 内，结束要晚于开始") }
         guard !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, title.count <= 120 else { throw FocusError("请填写事情，最多 120 字") }
         guard note.count <= 1000 else { throw FocusError("备注最多 1000 字") }
         guard TimeGrid.colors.contains(color) else { throw FocusError("请选择一种记录颜色") }
+    }
+    public func linkedTaskTitle(tasks: [FocusTask]) -> String? {
+        guard let taskID else { return nil }
+        return taskTitleSnapshot ?? tasks.first(where: { $0.id == taskID })?.title
     }
 }
 public struct TimePlacement: Equatable {

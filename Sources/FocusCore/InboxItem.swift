@@ -5,6 +5,8 @@ public struct InboxItem: Codable, Identifiable, Equatable {
     public var title: String
     public var createdAt: Double
     public var deletedAt: Double?
+    public var scheduledDay: String? = nil
+    public var reminderAt: Double? = nil
 
     static func title(_ value: String?) throws -> String {
         let title = (value ?? "").split(whereSeparator: { $0.isWhitespace }).joined(separator: " ")
@@ -16,6 +18,7 @@ public struct InboxItem: Codable, Identifiable, Equatable {
     static func validate(_ items: [InboxItem]) throws {
         var ids = Set<String>()
         for item in items {
+            try validateSchedule(day: item.scheduledDay, reminderAt: item.reminderAt)
             guard !item.id.isEmpty, ids.insert(item.id).inserted,
                   try title(item.title) == item.title, item.createdAt.isFinite, item.createdAt >= 0,
                   item.deletedAt == nil || (item.deletedAt!.isFinite && item.deletedAt! >= 0) else { throw FocusError("收集箱数据无效，已保留原文件") }
@@ -40,10 +43,16 @@ extension FocusState {
                 switch command.action {
                 case "editInbox": items[index].title = try InboxItem.title(command.title)
                 case "deleteInbox": items[index].deletedAt = now
+                case "scheduleInbox":
+                    try validateSchedule(day: command.scheduledDay, reminderAt: command.reminderAt)
+                    items[index].scheduledDay = command.scheduledDay; items[index].reminderAt = command.reminderAt
+                case "dismissInboxReminder": items[index].reminderAt = nil
                 case "moveInboxToday":
                     let item = items[index]
                     guard !tasks.contains(where: { $0.id == item.id }) else { throw FocusError("任务编号冲突，未移动原记录") }
-                    tasks.append(FocusTask(id: item.id, title: item.title, nextStep: "", day: Self.day(at: now)))
+                    let reminder = command.consumeReminder == true ? nil : item.reminderAt
+                    tasks.append(FocusTask(id: item.id, title: item.title, nextStep: "", day: Self.day(at: now),
+                                           scheduledDay: reminder == nil ? nil : Self.day(at: now), reminderAt: reminder))
                     items.remove(at: index)
                 default: throw FocusError("不支持的收集箱操作")
                 }

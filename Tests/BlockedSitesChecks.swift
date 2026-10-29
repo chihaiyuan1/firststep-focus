@@ -49,7 +49,7 @@ func rejects(_ body: () throws -> Void) { do { try body(); fatalError("Expected 
         try Data("{\"schema\":1,\"tasks\":[],\"history\":[]}".utf8).write(to: file)
         let store = StateStore(directory: directory)
         let migrated = try store.transact(now: 1000)
-        check(migrated.schema == 4 && migrated.effectiveBlockedSites.count == 3, "Legacy schema migration")
+        check(migrated.schema == 6 && migrated.effectiveBlockedSites.count == 3, "Legacy schema migration")
         _ = try store.transact(command: Command("addBlockedSite", site: "bilibili.com"), now: 1000)
         check(try store.transact(now: 1001).canonicalBlockedSite("bilibili.com") == "bilibili.com", "Persistence")
         let longHost = String(repeating: "a", count: 60) + "." + String(repeating: "b", count: 60) + ".example"

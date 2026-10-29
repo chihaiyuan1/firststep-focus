@@ -72,6 +72,30 @@ private func replyJSON(kind: String = "taskPlan", message: String = "先完成�
         let next=try JSONSerialization.jsonObject(with:Data(AssistantPrompts.reviewContext(state:state,entries:[time],day:"2026-10-23").utf8)) as! [String:Any]
         check(next["focusSeconds"] as? Int == 0,"cross-midnight not double counted")
         check(context.contains("完成日期未知"),"unknown completion is not inferred from task day")
+        state.history[0].subtaskID="original-step";state.history[0].subtaskTitle="当时小任务"
+        state.tasks[0].title="后来改名的主任务"
+        let savedThought="第一行：先核对 🧭\n第二行：e\u{301} 仍待确认"
+        let reflections=[
+            SessionReflection(recordID:"a",text:savedThought,draft:"不发送修改草稿",updatedAt:start+86400,savedAt:start+86400),
+            SessionReflection(recordID:"orphan",text:"不发送孤立想法",updatedAt:start,savedAt:start)
+        ]
+        let withThought=AssistantPrompts.reviewContext(state:state,entries:[time],day:"2026-10-22",reflections:reflections)
+        let thoughtObject=try JSONSerialization.jsonObject(with:Data(withThought.utf8)) as! [String:Any]
+        let thoughtRows=thoughtObject["sessionReflections"] as! [[String:Any]]
+        check(thoughtRows.count==1 && thoughtRows[0]["recordID"] as? String=="a" && thoughtRows[0]["taskID"] as? String==state.history[0].taskID,"review includes only saved thoughts linked to selected-day records")
+        check(thoughtRows[0]["title"] as? String=="当天任务" && thoughtRows[0]["subtaskTitle"] as? String=="当时小任务" && thoughtRows[0]["text"] as? String==savedThought,"review preserves original parent/subtask attribution and exact saved text after later edits")
+        check(!withThought.contains("不发送") && !withThought.contains("focus-reflections.json") && !withThought.contains("draft"),"review omits drafts, orphan notes and storage metadata")
+        let nextThought=AssistantPrompts.reviewContext(state:state,entries:[],day:"2026-10-23",reflections:reflections)
+        check(!nextThought.contains("第一行") && !nextThought.contains("仍待确认"),"next-day edits do not move a thought away from session start day")
+        let unsaved=[SessionReflection(recordID:"a",text:"不发送未保存文字",draft:"不发送草稿",updatedAt:start,savedAt:nil)]
+        let blankSaved=[SessionReflection(recordID:"a",text:" \n\t",updatedAt:start,savedAt:start)]
+        check(!AssistantPrompts.reviewContext(state:state,entries:[],day:"2026-10-22",reflections:unsaved).contains("不发送"),"unsaved text is excluded even when nonempty")
+        let blankObject=try JSONSerialization.jsonObject(with:Data(AssistantPrompts.reviewContext(state:state,entries:[],day:"2026-10-22",reflections:blankSaved).utf8)) as! [String:Any]
+        check((blankObject["sessionReflections"] as? [[String:Any]])?.isEmpty==true,"saved whitespace-only thoughts are excluded")
+        let disclosed=AssistantPrompts.reflectionPreviewLines(context:withThought).joined(separator:"\n")
+        check(disclosed.contains(savedThought) && disclosed.contains("用户写下的想法") && disclosed.contains("当天任务 · 当时小任务") && !disclosed.contains("original-step"),"review preview shows exact included multiline user thought with readable attribution")
+        check(AssistantPrompts.reflectionPreviewLines(context:withThought+"\n用户补充：这是另外的补充").joined(separator:"\n").contains(savedThought),"saved review turn with supplemental text still discloses the captured thought exactly")
+        check(!AssistantPrompts.taskContext(state.tasks[0]).contains(savedThought),"task decomposition does not gain reflection context")
         finish()
     }
     static func finish() {

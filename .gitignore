@@ -21,3 +21,9 @@ ai-preferences.json
 AI/
 account-*.json
 ai-chats.json
+keyboard-shortcuts.json
+
+# Private per-session thoughts and reminder preference
+focus-reflections.json
+completion-reminders.json
+habits.json

@@ -77,6 +77,31 @@ private func writeDocument(_ object: [String: Any], to url: URL) throws {
         check(active["id"] as? String == "active" && active["subtaskTitle"] as? String == "当前小任务", "active session is disclosed independently")
         let tomorrow = try ChatDayContext.capture(state: state, entries: logs, now: date("2026-10-24", 1))
         check(tomorrow.day == "2026-10-24" && tomorrow.focusCount == 0 && tomorrow.timeEntryCount == 0 && tomorrow.taskCount == 2, "a new capture after midnight uses the new day and retains old open tasks")
+        var scheduledState = FocusState()
+        scheduledState.tasks = [
+            FocusTask(id:"future",title:"未来事项不发送",nextStep:"",day:today,scheduledDay:"2026-11-03"),
+            FocusTask(id:"due",title:"已经到期的事项",nextStep:"",day:yesterday,scheduledDay:today),
+            FocusTask(id:"worked",title:"今日已专注的未来事项",nextStep:"",day:yesterday,scheduledDay:"2026-11-03"),
+            FocusTask(id:"completed",title:"今日完成的未来事项",nextStep:"",day:yesterday,completed:true,completedAt:midnight+100,scheduledDay:"2026-11-03"),
+            FocusTask(id:"child",title:"今日完成小任务的未来事项",nextStep:"",day:yesterday,completed:true,subtasks:[step],scheduledDay:"2026-11-03"),
+            FocusTask(id:"active-future",title:"进行中的未来事项",nextStep:"",day:yesterday,scheduledDay:"2026-11-03")
+        ]
+        scheduledState.history = [FocusRecord(id:"worked-record",taskID:"worked",title:"今日已专注的未来事项",startAt:midnight+1000,endAt:midnight+1600,focusSeconds:600,finished:false,accessCount:0)]
+        scheduledState.session = Session(taskID:"active-future",title:"进行中的未来事项",nextStep:"",startAt:midnight-10,endAt:midnight+1000)
+        let scheduledCapture = try ChatDayContext.capture(state:scheduledState,entries:[],now:now)
+        let scheduledRows = try object(scheduledCapture.text)["tasks"] as! [[String:Any]]
+        let scheduledIDs = Set(scheduledRows.compactMap { $0["id"] as? String })
+        check(!scheduledIDs.contains("future") && !scheduledCapture.text.contains("未来事项不发送"), "future scheduled task with no today activity must not be sent")
+        check(scheduledIDs == ["due","worked","completed","child","active-future"], "due and today-related focus, completion, subtask and active tasks remain in snapshot")
+        check(scheduledRows.first { $0["id"] as? String == "worked" }?["scheduledDay"] as? String == "2026-11-03", "captured task must use its actual explicit planned date")
+        check(scheduledRows.first { $0["id"] as? String == "due" }?["scheduledDay"] as? String == today, "due task exposes planned date instead of earlier original date")
+        let linkedLog = try TimeEntry(day:today,startMinute:540,endMinute:600,title:"核对资料",taskID:"future",taskTitleSnapshot:"记录时的任务名")
+        let linkedCapture = try ChatDayContext.capture(state:scheduledState,entries:[linkedLog],now:now)
+        let linkedObject = try object(linkedCapture.text)
+        let linkedRows = linkedObject["manualTimeEntries"] as! [[String:Any]]
+        let linkedTasks = linkedObject["tasks"] as! [[String:Any]]
+        check(linkedRows.first?["linkedTaskTitle"] as? String == "记录时的任务名" && linkedCapture.previewLines.joined().contains("记录时的任务名"),"linked task snapshot is sent and disclosed")
+        check(linkedTasks.contains { $0["id"] as? String == "future" },"a future task with a manual record today is included as relevant")
         // Mutations caught: previewing a freshly filtered state instead of the captured
         // payload, omitting newly completed subtasks, or formatting with today's timezone.
         var previewState = state
@@ -105,11 +130,44 @@ private func writeDocument(_ object: [String: Any], to url: URL) throws {
         fixedZoneContext.text = String(data: try JSONSerialization.data(withJSONObject: fixedSnapshot), encoding: .utf8)!
         let zonedPreview = fixedZoneContext.previewLines.joined(separator: "\n")
         check(zonedPreview.contains("1969-12-31 14:00") && zonedPreview.contains("1969-12-31 14:30") && !zonedPreview.contains("fixed-zone-id") && !zonedPreview.contains("fixed-active-id"), "saved timezone controls both focus and active timestamps instead of the current timezone")
+        // A saved snapshot must disclose exactly the user-written text, including its line breaks.
+        var reflectionPreview = previewContext
+        var reflectionSnapshot = try object(reflectionPreview.text)
+        let savedThought = "第一行：已核对 🧭\n第二行：仍需确认 e\u{301}"
+        reflectionSnapshot["sessionReflections"] = [["recordID": "today-focus", "taskID": "focused", "title": "当时主任务", "subtaskID": "old-step", "subtaskTitle": "当时小任务", "text": savedThought]]
+        reflectionPreview.text = String(data: try JSONSerialization.data(withJSONObject: reflectionSnapshot), encoding: .utf8)!
+        let savedThoughtPreview = reflectionPreview.previewLines.joined(separator: "\n")
+        check(savedThoughtPreview.contains(savedThought) && savedThoughtPreview.contains("用户写下的想法") && savedThoughtPreview.contains("当时主任务 · 当时小任务"), "saved source preview discloses exact multiline Unicode thought with original attribution and user-written label")
+        check(!savedThoughtPreview.contains("today-focus") && !savedThoughtPreview.contains("old-step"), "saved thought preview does not disclose internal IDs")
         var malformedPreview = context; malformedPreview.text = "{broken"
         check(!malformedPreview.previewLines.isEmpty && !malformedPreview.previewLines.joined().contains("{broken"), "invalid snapshot preview fails visibly without exposing raw JSON")
         var largeState = FocusState()
         largeState.tasks = (0..<180).map { FocusTask(id: "large-\($0)", title: String(repeating: "中", count: 120), nextStep: "", day: today) }
         rejects("oversized snapshots fail instead of silently dropping rows") { _ = try ChatDayContext.capture(state: largeState, entries: [], now: now) }
+
+        var reflectionState=state
+        reflectionState.history[1].subtaskID="past-step";reflectionState.history[1].subtaskTitle="当时的小任务"
+        let reflectionText=" 已保存的想法 🧭\n保留第二行 e\u{301} "
+        let reflections=[
+            SessionReflection(recordID:"today-focus",text:reflectionText,draft:"不发送编辑草稿",updatedAt:midnight+86400,savedAt:midnight+86400),
+            SessionReflection(recordID:"cross-old",text:"不发送昨日起始轮次想法",updatedAt:midnight+100,savedAt:midnight+100),
+            SessionReflection(recordID:"early",text:"不发送未保存想法",draft:"不发送草稿",updatedAt:midnight,savedAt:nil),
+            SessionReflection(recordID:"orphan",text:"不发送孤立想法",updatedAt:midnight,savedAt:midnight)
+        ]
+        let reflected=try ChatDayContext.capture(state:reflectionState,entries:[],now:now,reflections:reflections)
+        let reflectedRows=try object(reflected.text)["sessionReflections"] as! [[String:Any]]
+        check(reflectedRows.count==1 && reflectedRows[0]["recordID"] as? String=="today-focus" && reflectedRows[0]["title"] as? String=="今日净专注" && reflectedRows[0]["subtaskTitle"] as? String=="当时的小任务","chat includes saved thought with original record and parent/subtask attribution")
+        check(reflectedRows[0]["text"] as? String==reflectionText && !reflected.text.contains("不发送") && !reflected.text.contains("draft") && !reflected.text.contains("focus-reflections.json"),"chat sends last saved text exactly while excluding drafts, orphan notes, other days and local metadata")
+        check(reflected.previewLines.joined(separator:"\n").contains(reflectionText),"chat source disclosure preserves saved whitespace and newlines")
+        let afterMidnight=try ChatDayContext.capture(state:reflectionState,entries:[],now:date("2026-10-24",1),reflections:reflections)
+        check(!afterMidnight.text.contains("已保存的想法"),"thought edited tomorrow remains associated with original start day")
+        let cleared=[SessionReflection(recordID:"early",text:" \n\t",updatedAt:midnight,savedAt:midnight)]
+        let clearedContext=try ChatDayContext.capture(state:reflectionState,entries:[],now:now,reflections:cleared)
+        check((try object(clearedContext.text)["sessionReflections"] as? [[String:Any]])?.isEmpty==true,"saved blank thought is omitted from chat")
+        let longNotes=reflectionState.history.filter {$0.id != "cross-old"}.map {SessionReflection(recordID:$0.id,text:String(repeating:"想",count:8000),updatedAt:midnight,savedAt:midnight)}
+        rejects("saved thoughts that exceed snapshot limit fail visibly without truncation") {_ = try ChatDayContext.capture(state:reflectionState,entries:[],now:now,reflections:longNotes)}
+        let savedSnapshot=try JSONDecoder().decode(ChatDayContext.self,from:JSONEncoder().encode(reflected))
+        check(savedSnapshot.previewLines==reflected.previewLines,"reopened chat retains exact sent thought even after external edits")
 
         // Mutations caught: cutting an odd message window, replaying all history, losing
         // historical dates, accepting blank/oversized questions or malformed pairs.

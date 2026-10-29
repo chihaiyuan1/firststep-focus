@@ -54,10 +54,10 @@ import FocusAI
         pendingQuestion=nil;busy=false
         if wasBusy {status="已取消，问题已保留"}
     }
-    func send(state:FocusCore.FocusState,entries:[TimeEntry],accountID:String,modelID:String,now:Date=Date()) {
+    func send(state:FocusCore.FocusState,entries:[TimeEntry],accountID:String,modelID:String,now:Date=Date(),reflections:[SessionReflection]=[]) {
         guard !busy,!needsSave,!accountID.isEmpty,!modelID.isEmpty else {return}
         do {
-            let context=try ChatDayContext.capture(state:state,entries:entries,now:now)
+            let context=try ChatDayContext.capture(state:state,entries:entries,now:now,reflections:reflections)
             let question=draft.trimmingCharacters(in:.whitespacesAndNewlines)
             let turns=try ChatPrompts.messages(history:messages,question:question,context:context)
             let id=selectedID ?? UUID().uuidString
